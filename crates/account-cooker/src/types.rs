@@ -1,4 +1,6 @@
-use serde::{Deserialize, Serialize};
+use serde::{de::Deserializer, Deserialize, Serialize};
+use std::path::Path;
+use thiserror::Error;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CookedRole {
@@ -16,7 +18,7 @@ pub struct CookedAccount {
     pub min_required_lamports: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct HandoffBundle {
     pub schema_version: u32,
     pub cluster: String,
@@ -24,6 +26,113 @@ pub struct HandoffBundle {
     pub sponsor_pubkey: String,
     pub accounts: Vec<CookedAccount>,
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum HandoffValidationError {
+    #[error("unsupported handoff schema_version {0}; expected 1")]
+    UnsupportedSchemaVersion(u32),
+    #[error("account {account_index} has an invalid secret_key_path: {reason}")]
+    InvalidSecretKeyPath {
+        account_index: usize,
+        reason: &'static str,
+    },
+}
+
+impl HandoffBundle {
+    pub fn validate(&self) -> Result<(), HandoffValidationError> {
+        if self.schema_version != 1 {
+            return Err(HandoffValidationError::UnsupportedSchemaVersion(
+                self.schema_version,
+            ));
+        }
+
+        for (account_index, account) in self.accounts.iter().enumerate() {
+            if let Some(path) = account.secret_key_path.as_deref() {
+                validate_secret_key_path(path).map_err(|reason| {
+                    HandoffValidationError::InvalidSecretKeyPath {
+                        account_index,
+                        reason,
+                    }
+                })?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn try_from_json(json: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(json)
+    }
+}
+
+impl<'de> Deserialize<'de> for HandoffBundle {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct HandoffBundleFields {
+            schema_version: u32,
+            cluster: String,
+            created_at_unix: i64,
+            sponsor_pubkey: String,
+            accounts: Vec<CookedAccount>,
+            warnings: Vec<String>,
+        }
+
+        let fields = HandoffBundleFields::deserialize(deserializer)?;
+        let handoff = Self {
+            schema_version: fields.schema_version,
+            cluster: fields.cluster,
+            created_at_unix: fields.created_at_unix,
+            sponsor_pubkey: fields.sponsor_pubkey,
+            accounts: fields.accounts,
+            warnings: fields.warnings,
+        };
+        handoff.validate().map_err(serde::de::Error::custom)?;
+        Ok(handoff)
+    }
+}
+
+fn validate_secret_key_path(path: &str) -> Result<(), &'static str> {
+    if path.is_empty() {
+        return Err("path must not be empty");
+    }
+    if path.contains('\n') || path.contains('\r') {
+        return Err("path must not contain newlines");
+    }
+    if Path::new(path).is_absolute()
+        || path.starts_with('/')
+        || path.starts_with('\\')
+        || (path.len() >= 3
+            && path.as_bytes()[0].is_ascii_alphabetic()
+            && path.as_bytes()[1] == b':'
+            && (path.as_bytes()[2] == b'/' || path.as_bytes()[2] == b'\\'))
+    {
+        return Err("path must be relative");
+    }
+    if path.split(['/', '\\']).any(|component| component == "..") {
+        return Err("path must not contain '..' components");
+    }
+    if looks_like_embedded_key(path) {
+        return Err("path must reference a file, not embedded key material");
+    }
+    Ok(())
+}
+
+fn looks_like_embedded_key(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.starts_with('[') && trimmed.ends_with(']') {
+        if let Ok(bytes) = serde_json::from_str::<Vec<u64>>(trimmed) {
+            return bytes.len() >= 16 && bytes.iter().all(|byte| *byte <= u8::MAX as u64);
+        }
+    }
+
+    trimmed.len() >= 40
+        && trimmed
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '+' | '/' | '='))
 }
 
 #[cfg(test)]
@@ -48,8 +157,64 @@ mod tests {
         };
         let json = serde_json::to_string_pretty(&h).unwrap();
         assert!(json.contains("\"schema_version\": 1"));
-        assert!(!json.contains("secret\":"));
+        let json_value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let account = &json_value["accounts"][0];
+        assert!(account.get("secret").is_none());
+        assert!(account.get("secret_key").is_none());
         let back: HandoffBundle = serde_json::from_str(&json).unwrap();
         assert_eq!(back, h);
+    }
+
+    #[test]
+    fn invalid_schema_version_fails_deserialization() {
+        let json = r#"{
+            "schema_version": 2,
+            "cluster": "devnet",
+            "created_at_unix": 1721750400,
+            "sponsor_pubkey": "11111111111111111111111111111111",
+            "accounts": [],
+            "warnings": []
+        }"#;
+
+        assert!(HandoffBundle::try_from_json(json).is_err());
+    }
+
+    #[test]
+    fn absolute_secret_key_path_fails_deserialization() {
+        let json = handoff_json_with_path("/tmp/keypair.json");
+
+        assert!(HandoffBundle::try_from_json(&json).is_err());
+    }
+
+    #[test]
+    fn relative_secret_key_path_is_accepted() {
+        let json = handoff_json_with_path("keys/fee_payer.json");
+
+        assert!(HandoffBundle::try_from_json(&json).is_ok());
+    }
+
+    #[test]
+    fn embedded_secret_material_fails_deserialization() {
+        let json = handoff_json_with_path("[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]");
+
+        assert!(HandoffBundle::try_from_json(&json).is_err());
+    }
+
+    fn handoff_json_with_path(path: &str) -> String {
+        serde_json::json!({
+            "schema_version": 1,
+            "cluster": "devnet",
+            "created_at_unix": 1721750400,
+            "sponsor_pubkey": "11111111111111111111111111111111",
+            "accounts": [{
+                "role": "FeePayer",
+                "pubkey": "FeePayer111111111111111111111111111111111",
+                "secret_key_path": path,
+                "funded_lamports": 50_000_000,
+                "min_required_lamports": 10_000_000
+            }],
+            "warnings": []
+        })
+        .to_string()
     }
 }
