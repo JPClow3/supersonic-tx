@@ -12,7 +12,7 @@ const INVALID_BUNDLE_MANIFEST: u32 = 6000;
 fn program_test() -> ProgramTest {
     ProgramTest::new(
         "supersonic_tx",
-        supersonic_tx::id(),
+        supersonic_tx_core::program_id(),
         processor!(supersonic_tx::entry),
     )
 }
@@ -55,7 +55,7 @@ async fn execute_fuzzy_bundle_rejects_zero_decoys() {
         .data(),
     };
     let transaction = Transaction::new_signed_with_payer(
-        &[missing_cpi],
+        &[instruction],
         Some(&payer.pubkey()),
         &[&payer],
         blockhash,
