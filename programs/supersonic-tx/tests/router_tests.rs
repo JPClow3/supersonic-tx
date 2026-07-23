@@ -8,6 +8,7 @@ use solana_sdk::{
 };
 
 const INVALID_BUNDLE_MANIFEST: u32 = 6000;
+const MISSING_CPI_PROGRAM: u32 = 6002;
 
 fn program_test() -> ProgramTest {
     ProgramTest::new(
@@ -34,7 +35,13 @@ async fn noop_decoy_succeeds() {
         &[&payer],
         blockhash,
     );
-    banks.process_transaction(transaction).await.unwrap();
+    let simulation = banks.simulate_transaction(transaction).await.unwrap();
+    assert!(simulation.result.is_ok());
+    assert!(simulation
+        .logs
+        .unwrap_or_default()
+        .iter()
+        .any(|log| log.contains("executed zero-op decoy instruction")));
 }
 
 #[tokio::test]
@@ -87,7 +94,37 @@ async fn execute_fuzzy_bundle_rejects_missing_cpi_target() {
         &[&payer],
         blockhash,
     );
-    assert!(banks.process_transaction(transaction).await.is_err());
+    let error = banks.process_transaction(transaction).await.unwrap_err();
+    assert_custom_error(error, MISSING_CPI_PROGRAM);
+}
+
+#[tokio::test]
+async fn execute_fuzzy_bundle_rejects_non_executable_cpi_target() {
+    let (mut banks, payer, blockhash) = program_test().start().await;
+    let mut accounts = supersonic_tx::accounts::ExecuteFuzzyBundle {
+        authority: payer.pubkey(),
+        system_program: system_program::ID,
+    }
+    .to_account_metas(None);
+    accounts.push(AccountMeta::new_readonly(payer.pubkey(), false));
+    let instruction = Instruction {
+        program_id: supersonic_tx::id(),
+        accounts,
+        data: supersonic_tx::instruction::ExecuteFuzzyBundle {
+            bundle_seed: 1,
+            decoy_count: 1,
+            instruction_data: Vec::new(),
+        }
+        .data(),
+    };
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&payer.pubkey()),
+        &[&payer],
+        blockhash,
+    );
+    let error = banks.process_transaction(transaction).await.unwrap_err();
+    assert_custom_error(error, MISSING_CPI_PROGRAM);
 }
 
 #[tokio::test]
