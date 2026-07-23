@@ -3,6 +3,7 @@ use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::instruction::{AccountMeta, Instruction};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::system_instruction;
+use std::fmt;
 use std::str::FromStr;
 use supersonic_tx_core::types::ObfuscationLevel;
 
@@ -18,29 +19,92 @@ pub trait DecoyGenerator: Send + Sync {
 
 /// Generates statistical micro-transfers following realistic log-normal / Benford distribution.
 pub struct StatisticalTransferNoise {
-    /// Popular protocol or liquidity pool target pubkeys to simulate interaction graphs.
-    pub decoy_destinations: Vec<Pubkey>,
+    /// Trusted wallet sink pubkeys used for fail-soft statistical transfers.
+    decoy_destinations: Vec<Pubkey>,
+}
+
+/// A sink explicitly trusted by the caller after off-chain validation/cooking.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecoySink(Pubkey);
+
+/// Error returned when a sink is a known program address.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvalidDecoySink {
+    pub destination: Pubkey,
+}
+
+impl fmt::Display for InvalidDecoySink {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "decoy sink is a denied program address: {}", self.destination)
+    }
+}
+
+impl std::error::Error for InvalidDecoySink {}
+
+impl DecoySink {
+    /// Mark a cooked wallet sink as trusted, rejecting known program addresses.
+    ///
+    /// This is an off-chain gate; complete executable-account detection requires RPC.
+    pub fn cooked(destination: Pubkey) -> Result<Self, InvalidDecoySink> {
+        if is_denied_program(&destination) {
+            return Err(InvalidDecoySink { destination });
+        }
+        Ok(Self(destination))
+    }
+
+    pub fn pubkey(self) -> Pubkey {
+        self.0
+    }
+}
+
+fn is_denied_program(destination: &Pubkey) -> bool {
+    let value = destination.to_string();
+    [
+        solana_sdk::system_program::ID,
+        Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").unwrap(),
+        Pubkey::from_str("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL").unwrap(),
+        Pubkey::from_str("ComputeBudget111111111111111111111111111111").unwrap(),
+        Pubkey::from_str("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr").unwrap(),
+    ]
+    .contains(destination)
+        || value.starts_with("JUP6")
+        || value.starts_with("675kPX")
+        || value.starts_with("whirLb")
+        || value.starts_with("9W959")
 }
 
 impl StatisticalTransferNoise {
-    pub fn new(decoy_destinations: Vec<Pubkey>) -> Self {
-        Self { decoy_destinations }
-    }
-
-    pub fn from_sinks(decoy_destinations: Vec<Pubkey>) -> Self {
-        Self { decoy_destinations }
+    /// Build statistical noise from explicitly cooked/trusted wallet sinks.
+    pub fn from_cooked_sinks(
+        decoy_destinations: Vec<Pubkey>,
+    ) -> Result<Self, InvalidDecoySink> {
+        let sinks = decoy_destinations
+            .into_iter()
+            .map(DecoySink::cooked)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            decoy_destinations: sinks.into_iter().map(DecoySink::pubkey).collect(),
+        })
     }
 
     /// Public tip / fee sink allowlist for fail-soft SOL transfers.
     /// Operators should prefer cooked DecoySinks from account-cooker.
     /// v1 ships an empty default; CLI/SDK inject sinks from handoff or `--tip`.
     pub fn default_tip_allowlist() -> Self {
-        Self::from_sinks(Vec::new())
+        Self {
+            decoy_destinations: Vec::new(),
+        }
     }
 
-    pub fn with_tips(mut self, tips: impl IntoIterator<Item = Pubkey>) -> Self {
-        self.decoy_destinations.extend(tips);
-        self
+    pub fn with_tips(
+        mut self,
+        tips: impl IntoIterator<Item = Pubkey>,
+    ) -> Result<Self, InvalidDecoySink> {
+        let tips = tips.into_iter().collect::<Vec<_>>();
+        let validated = Self::from_cooked_sinks(tips)?;
+        self.decoy_destinations
+            .extend(validated.decoy_destinations);
+        Ok(self)
     }
 
     /// Sample a lamport transfer amount strictly adhering to Benford's Law distribution within [min_lamports, max_lamports].
@@ -381,11 +445,35 @@ mod tests {
     #[test]
     fn statistical_noise_uses_injected_sinks() {
         let sink = Pubkey::new_unique();
-        let noise = StatisticalTransferNoise::from_sinks(vec![sink]);
+        let noise = StatisticalTransferNoise::from_cooked_sinks(vec![sink]).unwrap();
         let payer = Pubkey::new_unique();
         let decoys = noise.generate_decoys(&payer, ObfuscationLevel::Light);
         assert_eq!(decoys.len(), 1);
         assert_eq!(decoys[0].accounts[1].pubkey, sink);
+    }
+
+    #[test]
+    fn statistical_noise_rejects_known_program_sinks() {
+        let program_ids = [
+            solana_sdk::system_program::ID,
+            Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").unwrap(),
+            Pubkey::from_str("JUP6LkbZbjS1jKKwapdH67yN5k8u4nKq1X4fD6F9yM5").unwrap(),
+        ];
+
+        for program_id in program_ids {
+            assert!(StatisticalTransferNoise::from_cooked_sinks(vec![program_id]).is_err());
+        }
+    }
+
+    #[test]
+    fn cooked_sinks_still_generate_transfers() {
+        let sink = DecoySink::cooked(Pubkey::new_unique()).unwrap();
+        let noise = StatisticalTransferNoise::from_cooked_sinks(vec![sink.pubkey()]).unwrap();
+        let payer = Pubkey::new_unique();
+        assert_eq!(
+            noise.generate_decoys(&payer, ObfuscationLevel::Light)[0].accounts[1].pubkey,
+            sink.pubkey()
+        );
     }
 
     #[test]

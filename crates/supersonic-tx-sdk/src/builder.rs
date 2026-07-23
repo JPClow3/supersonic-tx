@@ -38,8 +38,9 @@ impl FuzzyBundleBuilder {
     /// Add fail-soft SOL transfer sinks for statistical decoys.
     pub fn with_sinks(mut self, sinks: Vec<Pubkey>) -> Self {
         if !sinks.is_empty() {
-            self.generators
-                .push(Box::new(StatisticalTransferNoise::from_sinks(sinks)));
+            if let Ok(noise) = StatisticalTransferNoise::from_cooked_sinks(sinks) {
+                self.generators.push(Box::new(noise));
+            }
         }
         self
     }
