@@ -1,0 +1,14 @@
+﻿[workspace]
+
+[package]
+name = "supersonic-tx-program-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+supersonic-tx = { path = "../supersonic-tx" }
+supersonic-tx-core = { path = "../../crates/supersonic-tx-core" }
+solana-program-test = "~1.18"
+solana-sdk = "~1.18"
+tokio = { version = "1.37", features = ["full"] }
