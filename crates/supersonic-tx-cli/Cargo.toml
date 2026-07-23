@@ -15,6 +15,7 @@ clap.workspace = true
 tokio.workspace = true
 solana-sdk.workspace = true
 solana-client.workspace = true
+account-cooker.workspace = true
 supersonic-tx-core.workspace = true
 supersonic-tx-sdk.workspace = true
 tracing.workspace = true
