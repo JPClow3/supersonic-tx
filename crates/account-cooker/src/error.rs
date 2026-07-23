@@ -10,6 +10,8 @@ pub enum CookerError {
     Io(#[from] std::io::Error),
     #[error("rpc: {0}")]
     Rpc(String),
+    #[error("rpc fee estimate was unavailable")]
+    FeeEstimateUnavailable,
     #[error("serde: {0}")]
     Serde(String),
     #[error("handoff JSON error: {0}")]

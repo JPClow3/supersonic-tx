@@ -197,11 +197,15 @@ impl Cooker {
         destination: &Pubkey,
     ) -> Result<(), CookerError> {
         handoff.validate()?;
-        let keypairs = Self::resolve_keypairs(handoff, handoff_dir)?;
-        for (account, keypair) in handoff.accounts.iter().zip(keypairs.iter()) {
-            if account.role == CookedRole::DrainTarget {
+        let rent_exempt_minimum = rpc
+            .get_minimum_balance_for_rent_exemption(0)
+            .await
+            .map_err(|error| CookerError::Rpc(error.to_string()))?;
+        for (account_index, account) in handoff.accounts.iter().enumerate() {
+            if should_skip_drain(account) {
                 continue;
             }
+            let keypair = resolve_keypair(account, account_index, handoff_dir)?;
             let balance = rpc
                 .get_balance(&keypair.pubkey())
                 .await
@@ -210,25 +214,26 @@ impl Cooker {
                 .get_latest_blockhash()
                 .await
                 .map_err(|error| CookerError::Rpc(error.to_string()))?;
-            let fee_message = Message::new(
-                &[system_instruction::transfer(&keypair.pubkey(), destination, 0)],
+            let mut fee_message = Message::new(
+                &[system_instruction::transfer(
+                    &keypair.pubkey(),
+                    destination,
+                    0,
+                )],
                 Some(&keypair.pubkey()),
             );
+            fee_message.recent_blockhash = blockhash;
             let fee = rpc
                 .get_fee_for_message(&fee_message)
                 .await
                 .map_err(|error| CookerError::Rpc(error.to_string()))?
-                .unwrap_or(0);
-            let amount = balance.saturating_sub(fee);
+                .ok_or(CookerError::FeeEstimateUnavailable)?;
+            let amount = drain_amount(balance, fee, rent_exempt_minimum);
             if amount == 0 {
                 continue;
             }
-            let transaction = Transaction::new_signed_with_payer(
-                &[system_instruction::transfer(&keypair.pubkey(), destination, amount)],
-                Some(&keypair.pubkey()),
-                &[keypair],
-                blockhash,
-            );
+            let transaction =
+                Transaction::new_signed_with_payer(&[system_instruction::transfer(&keypair.pubkey(), destination, amount)], Some(&keypair.pubkey()), &[keypair], blockhash);
             rpc.send_and_confirm_transaction(&transaction)
                 .await
                 .map_err(|error| CookerError::Rpc(error.to_string()))?;
@@ -296,6 +301,32 @@ impl Cooker {
         }
         warnings
     }
+}
+
+fn resolve_keypair(
+    account: &CookedAccount,
+    account_index: usize,
+    handoff_dir: &Path,
+) -> Result<Keypair, CookerError> {
+    let relative_path = account
+        .secret_key_path
+        .as_deref()
+        .ok_or(CookerError::MissingSecretKeyPath { account_index })?;
+    let path = handoff_dir.join(relative_path);
+    let keypair = read_keypair_file(path.to_string_lossy().as_ref())
+        .map_err(|error| CookerError::Keypair(error.to_string()))?;
+    if keypair.pubkey().to_string() != account.pubkey {
+        return Err(CookerError::KeypairMismatch { account_index });
+    }
+    Ok(keypair)
+}
+
+fn drain_amount(balance: u64, fee: u64, rent_exempt_minimum: u64) -> u64 {
+    balance.saturating_sub(fee).saturating_sub(rent_exempt_minimum)
+}
+
+fn should_skip_drain(account: &CookedAccount) -> bool {
+    account.role == CookedRole::DrainTarget
 }
 
 fn keypair_relative_path(role: &CookedRole, sink_index: &mut usize) -> String {
@@ -392,5 +423,25 @@ mod tests {
         let pk = Pubkey::new_unique();
         let warnings = Cooker::detect_reuse_warnings(Path::new("/tmp"), &[pk, pk]);
         assert!(!warnings.is_empty());
+    }
+
+    #[test]
+    fn drain_amount_preserves_rent_exempt_minimum() {
+        assert_eq!(drain_amount(10_000, 500, 2_000), 7_500);
+        assert_eq!(drain_amount(2_500, 500, 2_000), 0);
+        assert_eq!(drain_amount(2_000, 500, 2_000), 0);
+    }
+
+    #[test]
+    fn pathless_drain_target_is_skipped_before_keypair_resolution() {
+        let target = CookedAccount {
+            role: CookedRole::DrainTarget,
+            pubkey: Pubkey::new_unique().to_string(),
+            secret_key_path: None,
+            funded_lamports: 0,
+            min_required_lamports: 0,
+        };
+        assert!(target.secret_key_path.is_none());
+        assert!(should_skip_drain(&target));
     }
 }
