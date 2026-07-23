@@ -153,10 +153,9 @@ fn validate_secret_key_path(path: &str) -> Result<(), &'static str> {
     if Path::new(path).is_absolute()
         || path.starts_with('/')
         || path.starts_with('\\')
-        || (path.len() >= 3
+        || (path.len() >= 2
             && path.as_bytes()[0].is_ascii_alphabetic()
-            && path.as_bytes()[1] == b':'
-            && (path.as_bytes()[2] == b'/' || path.as_bytes()[2] == b'\\'))
+            && path.as_bytes()[1] == b':')
     {
         return Err("path must be relative");
     }
@@ -293,6 +292,13 @@ mod tests {
         let json = handoff_json_with_path("keys/fee_payer.json");
 
         assert!(HandoffBundle::try_from_json(&json).is_ok());
+    }
+
+    #[test]
+    fn windows_drive_relative_secret_key_path_fails_deserialization() {
+        let json = handoff_json_with_path("C:keys/fee_payer.json");
+
+        assert!(HandoffBundle::try_from_json(&json).is_err());
     }
 
     #[test]

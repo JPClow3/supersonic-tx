@@ -65,10 +65,10 @@ impl Cooker {
             pairs.push((CookedRole::DecoySink, Keypair::new()));
         }
 
+        let mut sink_index = 0;
         let accounts = pairs
             .iter()
-            .enumerate()
-            .map(|(index, (role, keypair))| {
+            .map(|(role, keypair)| {
                 let (secret_key_path, funded_lamports, min_required_lamports) = match role {
                     CookedRole::FeePayer => (
                         "keys/fee_payer.json".to_owned(),
@@ -76,7 +76,7 @@ impl Cooker {
                         cfg.min_fee_payer_lamports,
                     ),
                     CookedRole::DecoySink => (
-                        format!("keys/sink_{}.json", index - 1),
+                        keypair_relative_path(role, &mut sink_index),
                         cfg.fund_sink_lamports,
                         cfg.min_sink_lamports,
                     ),
@@ -115,11 +115,11 @@ impl Cooker {
         let key_dir = out_dir.join("keys");
         fs::create_dir_all(&key_dir)?;
 
+        let mut sink_index = 0;
         pairs
             .iter()
-            .enumerate()
-            .map(|(index, (role, keypair))| {
-                let relative_path = keypair_relative_path(role, index);
+            .map(|(role, keypair)| {
+                let relative_path = keypair_relative_path(role, &mut sink_index);
                 let full_path = out_dir.join(&relative_path);
                 write_keypair_file(keypair, full_path.to_string_lossy().as_ref())
                     .map_err(|error| CookerError::Keypair(error.to_string()))?;
@@ -175,10 +175,14 @@ impl Cooker {
     }
 }
 
-fn keypair_relative_path(role: &CookedRole, index: usize) -> String {
+fn keypair_relative_path(role: &CookedRole, sink_index: &mut usize) -> String {
     match role {
         CookedRole::FeePayer => "keys/fee_payer.json".to_owned(),
-        CookedRole::DecoySink => format!("keys/sink_{}.json", index - 1),
+        CookedRole::DecoySink => {
+            let path = format!("keys/sink_{}.json", *sink_index);
+            *sink_index += 1;
+            path
+        }
         CookedRole::DrainTarget => "keys/drain_target.json".to_owned(),
     }
 }
@@ -213,5 +217,29 @@ mod tests {
         assert_eq!(loaded.schema_version, 1);
         let kps = Cooker::resolve_keypairs(&loaded, dir.path()).unwrap();
         assert_eq!(kps.len(), loaded.accounts.len());
+    }
+
+    #[test]
+    fn write_keypair_dir_handles_sink_first_ordering() {
+        let dir = tempfile::tempdir().unwrap();
+        let pairs = vec![
+            (CookedRole::DecoySink, Keypair::new()),
+            (CookedRole::FeePayer, Keypair::new()),
+            (CookedRole::DecoySink, Keypair::new()),
+        ];
+
+        let accounts = Cooker::write_keypair_dir(dir.path(), &pairs).unwrap();
+
+        assert_eq!(
+            accounts
+                .iter()
+                .map(|account| account.secret_key_path.as_deref())
+                .collect::<Vec<_>>(),
+            vec![
+                Some("keys/sink_0.json"),
+                Some("keys/fee_payer.json"),
+                Some("keys/sink_1.json"),
+            ]
+        );
     }
 }
