@@ -1,5 +1,6 @@
 use crate::noise::{
-    AnchorRouterNoise, ComputeBudgetNoise, DecoyGenerator, MemoNoise, StatisticalTransferNoise,
+    AnchorRouterNoise, ComputeBudgetNoise, DecoyGenerator, DecoySink, MemoNoise,
+    SinkValidationMode, StatisticalTransferNoise,
 };
 use rand::seq::SliceRandom;
 use solana_sdk::address_lookup_table::AddressLookupTableAccount;
@@ -20,6 +21,9 @@ pub struct FuzzyBundleBuilder {
     level: ObfuscationLevel,
     target_instructions: Vec<Instruction>,
     generators: Vec<Box<dyn DecoyGenerator>>,
+    transfer_decoys_expected: bool,
+    transfer_sink_count: usize,
+    sink_validation_mode: SinkValidationMode,
 }
 
 impl FuzzyBundleBuilder {
@@ -33,16 +37,30 @@ impl FuzzyBundleBuilder {
                 Box::new(AnchorRouterNoise::default()),
                 Box::new(MemoNoise::default()),
             ],
+            transfer_decoys_expected: false,
+            transfer_sink_count: 0,
+            sink_validation_mode: SinkValidationMode::DenyListOnly,
         }
     }
 
-    /// Add fail-soft SOL transfer sinks for statistical decoys.
-    pub fn with_sinks(mut self, sinks: Vec<Pubkey>) -> Self {
-        if !sinks.is_empty() {
-            if let Ok(noise) = StatisticalTransferNoise::from_cooked_sinks(sinks) {
-                self.generators.push(Box::new(noise));
-            }
+    /// Add provenance-gated fail-soft SOL transfer sinks.
+    pub fn with_sinks(mut self, sinks: Vec<DecoySink>) -> Result<Self, SupersonicError> {
+        self.transfer_decoys_expected = true;
+        if sinks.is_empty() {
+            return Err(SupersonicError::InvalidDecoyConfig(
+                "transfer decoys require at least one validated sink".to_string(),
+            ));
         }
+        self.transfer_sink_count = sinks.len();
+        self.generators
+            .push(Box::new(StatisticalTransferNoise::from_sinks(sinks)));
+        Ok(self)
+    }
+
+    /// Select sink validation policy. On-chain mode requires a checker that
+    /// is not yet available in this SDK and therefore fails during build.
+    pub fn with_sink_validation_mode(mut self, mode: SinkValidationMode) -> Self {
+        self.sink_validation_mode = mode;
         self
     }
 
@@ -66,6 +84,19 @@ impl FuzzyBundleBuilder {
 
     /// Build the bundle manifest with interleaved target and decoy instructions.
     pub fn build_manifest(&self) -> Result<BundleManifest, SupersonicError> {
+        match self.sink_validation_mode {
+            SinkValidationMode::DenyListOnly => {}
+            SinkValidationMode::RequireOnChainNonExecutable => {
+                return Err(SupersonicError::InvalidDecoyConfig(
+                    "on-chain non-executable sink validation requires an RPC checker".to_string(),
+                ));
+            }
+        }
+        if self.transfer_decoys_expected && self.transfer_sink_count == 0 {
+            return Err(SupersonicError::InvalidDecoyConfig(
+                "transfer decoys expected but no valid sinks remain".to_string(),
+            ));
+        }
         let mut manifest = BundleManifest::new(self.level);
         manifest.target_instructions = self.target_instructions.clone();
 

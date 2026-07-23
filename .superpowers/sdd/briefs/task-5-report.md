@@ -29,3 +29,14 @@ Concerns:
 - Added regression tests for System/Token/fake-Jupiter rejection and successful cooked-wallet transfers.
 - `git diff --check`: passed.
 - `cargo test -p supersonic-tx-sdk` and `cargo fmt --all -- --check`: unavailable because `cargo` is not installed on PATH.
+
+## Task 5 re-review fixes
+
+- Removed public arbitrary-pubkey `DecoySink::cooked` and `from_cooked_sinks`.
+- Added opaque `TrustedSystemAccount` provenance handoff with deny-list enforcement,
+  allowlist-only tip construction, and explicit RPC-validation limitations.
+- Changed statistical noise and builder sink injection to accept validated sink
+  types; empty sink injection now returns `InvalidDecoyConfig`.
+- Added `SinkValidationMode`; on-chain mode fails clearly until an RPC checker is wired.
+- Added regression coverage for program-like destinations and trusted sink transfers.
+- Verification: `git diff --check` passed; Cargo/rustfmt remain unavailable on PATH.

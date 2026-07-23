@@ -23,9 +23,26 @@ pub struct StatisticalTransferNoise {
     decoy_destinations: Vec<Pubkey>,
 }
 
-/// A sink explicitly trusted by the caller after off-chain validation/cooking.
+/// An opaque pubkey handoff for an account known to be a system-owned wallet.
+///
+/// `assume_system_wallet` is an off-chain provenance assertion for cooker
+/// integration. It rejects known program IDs, but cannot prove arbitrary
+/// accounts are non-executable without an RPC account lookup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DecoySink(Pubkey);
+pub struct TrustedSystemAccount(Pubkey);
+
+/// A transfer sink carrying trusted-account provenance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecoySink(TrustedSystemAccount);
+
+/// Selects how strongly transfer sinks must be validated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SinkValidationMode {
+    /// Apply the local known-program deny-list and provenance gate.
+    DenyListOnly,
+    /// Reserved for a future RPC account-owner/executable checker.
+    RequireOnChainNonExecutable,
+}
 
 /// Error returned when a sink is a known program address.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,18 +59,55 @@ impl fmt::Display for InvalidDecoySink {
 impl std::error::Error for InvalidDecoySink {}
 
 impl DecoySink {
-    /// Mark a cooked wallet sink as trusted, rejecting known program addresses.
+    /// Accept a tip only when it is present in the built-in allowlist.
     ///
-    /// This is an off-chain gate; complete executable-account detection requires RPC.
-    pub fn cooked(destination: Pubkey) -> Result<Self, InvalidDecoySink> {
+    /// The v1 built-in allowlist is intentionally empty; operators should
+    /// validate configured tips with `try_tip_allowlisted_from`.
+    pub fn try_tip_allowlisted(destination: Pubkey) -> Result<Self, InvalidDecoySink> {
+        Self::try_tip_allowlisted_from(destination, &[])
+    }
+
+    /// Accept a tip only when it is present in an operator allowlist.
+    pub fn try_tip_allowlisted_from(
+        destination: Pubkey,
+        allowlist: &[Pubkey],
+    ) -> Result<Self, InvalidDecoySink> {
+        TrustedSystemAccount::try_from_tip_allowlist(destination, allowlist).map(Self)
+    }
+
+    /// Convert an opaque cooker/system-wallet handoff into a transfer sink.
+    pub fn from_trusted_system_account(account: TrustedSystemAccount) -> Self {
+        Self(account)
+    }
+
+    pub fn pubkey(self) -> Pubkey {
+        self.0.0
+    }
+}
+
+impl TrustedSystemAccount {
+    /// Assert that `destination` is a normal system wallet from a trusted
+    /// cooker handoff. Known executable/program addresses are always denied.
+    ///
+    /// This does not replace RPC executable/account-owner validation. Callers
+    /// must only use this for keypairs minted as normal ed25519 system
+    /// accounts; use `try_from_tip_allowlist` for configured tip accounts.
+    pub fn assume_system_wallet(destination: Pubkey) -> Result<Self, InvalidDecoySink> {
         if is_denied_program(&destination) {
             return Err(InvalidDecoySink { destination });
         }
         Ok(Self(destination))
     }
 
-    pub fn pubkey(self) -> Pubkey {
-        self.0
+    /// Validate a pubkey against an explicit tip allowlist.
+    pub fn try_from_tip_allowlist(
+        destination: Pubkey,
+        allowlist: &[Pubkey],
+    ) -> Result<Self, InvalidDecoySink> {
+        if !allowlist.contains(&destination) {
+            return Err(InvalidDecoySink { destination });
+        }
+        Self::assume_system_wallet(destination)
     }
 }
 
@@ -74,17 +128,14 @@ fn is_denied_program(destination: &Pubkey) -> bool {
 }
 
 impl StatisticalTransferNoise {
-    /// Build statistical noise from explicitly cooked/trusted wallet sinks.
-    pub fn from_cooked_sinks(
-        decoy_destinations: Vec<Pubkey>,
-    ) -> Result<Self, InvalidDecoySink> {
-        let sinks = decoy_destinations
-            .into_iter()
-            .map(DecoySink::cooked)
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self {
-            decoy_destinations: sinks.into_iter().map(DecoySink::pubkey).collect(),
-        })
+    /// Build statistical noise from provenance-gated transfer sinks.
+    pub fn from_sinks(decoy_destinations: Vec<DecoySink>) -> Self {
+        Self {
+            decoy_destinations: decoy_destinations
+                .into_iter()
+                .map(DecoySink::pubkey)
+                .collect(),
+        }
     }
 
     /// Public tip / fee sink allowlist for fail-soft SOL transfers.
@@ -98,12 +149,12 @@ impl StatisticalTransferNoise {
 
     pub fn with_tips(
         mut self,
-        tips: impl IntoIterator<Item = Pubkey>,
+        tips: &[TrustedSystemAccount],
     ) -> Result<Self, InvalidDecoySink> {
-        let tips = tips.into_iter().collect::<Vec<_>>();
-        let validated = Self::from_cooked_sinks(tips)?;
-        self.decoy_destinations
-            .extend(validated.decoy_destinations);
+        for tip in tips {
+            let sink = DecoySink::from_trusted_system_account(*tip);
+            self.decoy_destinations.push(sink.pubkey());
+        }
         Ok(self)
     }
 
@@ -445,7 +496,11 @@ mod tests {
     #[test]
     fn statistical_noise_uses_injected_sinks() {
         let sink = Pubkey::new_unique();
-        let noise = StatisticalTransferNoise::from_cooked_sinks(vec![sink]).unwrap();
+        let trusted = TrustedSystemAccount::assume_system_wallet(sink).unwrap();
+        let noise =
+            StatisticalTransferNoise::from_sinks(vec![DecoySink::from_trusted_system_account(
+                trusted,
+            )]);
         let payer = Pubkey::new_unique();
         let decoys = noise.generate_decoys(&payer, ObfuscationLevel::Light);
         assert_eq!(decoys.len(), 1);
@@ -461,19 +516,27 @@ mod tests {
         ];
 
         for program_id in program_ids {
-            assert!(StatisticalTransferNoise::from_cooked_sinks(vec![program_id]).is_err());
+            assert!(TrustedSystemAccount::assume_system_wallet(program_id).is_err());
         }
     }
 
     #[test]
-    fn cooked_sinks_still_generate_transfers() {
-        let sink = DecoySink::cooked(Pubkey::new_unique()).unwrap();
-        let noise = StatisticalTransferNoise::from_cooked_sinks(vec![sink.pubkey()]).unwrap();
+    fn trusted_system_sinks_still_generate_transfers() {
+        let trusted = TrustedSystemAccount::assume_system_wallet(Pubkey::new_unique()).unwrap();
+        let sink = DecoySink::from_trusted_system_account(trusted);
+        let noise = StatisticalTransferNoise::from_sinks(vec![sink]);
         let payer = Pubkey::new_unique();
         assert_eq!(
             noise.generate_decoys(&payer, ObfuscationLevel::Light)[0].accounts[1].pubkey,
             sink.pubkey()
         );
+    }
+
+    #[test]
+    fn arbitrary_program_like_sink_requires_provenance_and_is_denied() {
+        let program = Pubkey::from_str("JUP6LkbZbjS1jKKwapdH67yN5k8u4nKq1X4fD6F9yM5").unwrap();
+        assert!(TrustedSystemAccount::assume_system_wallet(program).is_err());
+        assert!(DecoySink::try_tip_allowlisted(program).is_err());
     }
 
     #[test]
