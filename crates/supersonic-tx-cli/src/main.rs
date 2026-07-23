@@ -232,7 +232,10 @@ async fn build_signed(
     let tables = resolve_alt(rpc, alt).await?;
     let blockhash = rpc.get_latest_blockhash().await?;
     let built = builder.build_bundle(blockhash, &tables)?;
-    let fee = rpc.get_fee_for_message(&built.message).await?;
+    let fee = match &built.message {
+        VersionedMessage::Legacy(message) => rpc.get_fee_for_message(message).await?,
+        VersionedMessage::V0(message) => rpc.get_fee_for_message(message).await?,
+    };
     let balance = rpc.get_balance(&payer).await?;
     let required = amount
         .saturating_add(fee)
@@ -242,10 +245,7 @@ async fn build_signed(
             250_000
         });
     if balance < required {
-        return Err(Box::new(SupersonicError::Underfunded {
-            balance,
-            required,
-        }));
+        return Err(Box::new(SupersonicError::Underfunded { balance, required }));
     }
     let decoy_count = built.manifest.decoy_instructions.len();
     let transaction = sign_versioned_tx(built.message, &[&accounts.payer])?;
