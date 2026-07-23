@@ -273,22 +273,36 @@ impl StatisticalTransferNoise {
         min_lamports: u64,
         max_lamports: u64,
     ) -> u64 {
+        assert!(
+            min_lamports <= max_lamports && max_lamports > 0,
+            "invalid sampling range"
+        );
         loop {
-            // 1. Sample leading digit d in [1, 9] via Inverse Transform Sampling: P(d) = log10(1 + 1/d)
             let u: f64 = rng.gen();
-            let leading_digit = (10.0f64.powf(u)).floor() as u64;
-            let leading_digit = leading_digit.clamp(1, 9);
+            let leading_digit = ((10.0f64.powf(u)).floor() as u64).clamp(1, 9);
+            let mut ranges = Vec::new();
+            let mut scale = 1_u64;
 
-            // 2. Select order of magnitude multiplier (10^3 or 10^4)
-            let magnitude_exp = rng.gen_range(3..=4);
-            let scale = 10u64.pow(magnitude_exp);
+            loop {
+                if let Some(digit_floor) = leading_digit.checked_mul(scale) {
+                    let digit_ceiling = (leading_digit + 1)
+                        .checked_mul(scale)
+                        .map(|value| value - 1)
+                        .unwrap_or(u64::MAX);
+                    let lower = digit_floor.max(min_lamports);
+                    let upper = digit_ceiling.min(max_lamports);
+                    if lower <= upper {
+                        ranges.push((lower, upper));
+                    }
+                }
+                match scale.checked_mul(10) {
+                    Some(next) if next <= max_lamports => scale = next,
+                    _ => break,
+                }
+            }
 
-            // 3. Generate uniform noise for lower-order trailing digits
-            let remainder = rng.gen_range(0..scale);
-            let candidate = leading_digit * scale + remainder;
-
-            if candidate >= min_lamports && candidate <= max_lamports {
-                return candidate;
+            if let Some(&(lower, upper)) = ranges.get(rng.gen_range(0..ranges.len().max(1))) {
+                return rng.gen_range(lower..=upper);
             }
         }
     }
