@@ -15,7 +15,7 @@ edition = "2021"
 license = "MIT"
 repository = "https://github.com/solanabr/supersonic-tx"
 readme = "README.md"
-description = "Fuzzy transaction bundles on Solana to defeat on-chain analytics, MEV front-runners, and copy-traders through behavioral obscurity."
+description = "Solana transaction tooling that adds limited behavioral obscurity without claiming anonymity or fund concealment."
 
 [workspace.dependencies]
 solana-sdk = "~1.18"

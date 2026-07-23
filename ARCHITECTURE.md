@@ -43,11 +43,14 @@ rejected before simulation or broadcast. `simulate_and_send` always runs
 `CampaignPlanner` labels transactions as `DecoyOnly` or `RealIntent`. With isolation
 enabled (the CLI default), statistical transfers never enter the real-intent
 transaction. Decoy-only errors are logged and execution continues; real-intent errors
-fail the command.
+fail the command. Every planned manifest uses the shared MTU shrink loop. The CLI
+prebuilds the campaign, computes live fees and System Program transfer spend, and skips
+any decoy that would breach the real-intent reserve.
 
 ## Router
 
-The default SDK path does not include the router. The CPI wrapper accepts exactly one
+The default SDK path does not include the router. `--via-router` wraps the target
+instruction itself; router noops are not a substitute for routing. The CPI wrapper accepts exactly one
 routed CPI, rejects a missing or non-executable target, invokes it, and emits success
 only afterward. Its event reports the executed routed-instruction count rather than a
 caller-asserted decoy count.

@@ -14,7 +14,7 @@ noise. It is not a mixer, anonymity system, or protection against a determined a
 - `--alt` fetches and validates the real lookup-table account. Failure falls back to a
   non-ALT V0 message and MTU shrink.
 - Router noise is off by default. `--via-router` first verifies that the configured
-  program account exists and is executable.
+  program account exists and is executable, then routes the target transfer through CPI.
 - Transfer sinks are accepted only after RPC proves they are non-executable,
   system-owned accounts.
 
@@ -35,13 +35,28 @@ Pinned compatibility: Solana `~1.18`, Anchor `0.30.1`, MIT.
 
 ```text
 supersonic-tx cook --sponsor-keypair sponsor.json --out-dir cooked
+supersonic-tx assemble [--payer <PUBKEY>] [--target <PUBKEY>]
 supersonic-tx simulate --target <PUBKEY> --handoff cooked/handoff-<time>.json
 supersonic-tx cast --target <PUBKEY> --handoff <PATH> [--alt <ALT>] [--send]
 supersonic-tx campaign --target <PUBKEY> --handoff <PATH> --txs 2 [--send]
 ```
 
-`campaign` isolates the real intent by default. Decoy-only transaction failures are
-best-effort; a real-intent simulation or send failure is fatal.
+`assemble` is the unsigned, keyless diagnostics path; `simulate` is signed RPC
+simulation. `campaign` prebuilds every transaction through MTU shrink, reserves the
+real-intent spend and fee before each decoy, and supports `--drain-to <PUBKEY>` only
+with `--send --handoff`. Decoy-only failures are best-effort; real-intent failures are
+fatal.
+
+`cook` refuses to overwrite any existing deterministic key path. Use a fresh output
+directory for every cook. On Windows, create a private directory before cooking:
+
+```powershell
+mkdir cooked
+icacls cooked /inheritance:r /grant:r "$env:USERNAME:(OI)(CI)F"
+```
+
+Review the resulting ACL with `icacls cooked`; never fund keys in a broadly accessible
+directory and never commit cooked key files.
 
 ## Threat model
 
