@@ -31,7 +31,10 @@ pub struct TrustedSystemAccount(Pubkey);
 
 /// A transfer sink carrying trusted-account provenance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DecoySink(TrustedSystemAccount);
+pub struct DecoySink {
+    account: TrustedSystemAccount,
+    rpc_validated: bool,
+}
 
 /// Selects how strongly transfer sinks must be validated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,6 +54,7 @@ pub enum InvalidDecoySink {
     InvalidCookedPubkey { value: String },
     RpcValidation { destination: Pubkey, reason: String },
     NotSystemWallet { destination: Pubkey },
+    RpcValidationRequired { destination: Pubkey },
 }
 
 impl fmt::Display for InvalidDecoySink {
@@ -79,6 +83,10 @@ impl fmt::Display for InvalidDecoySink {
                 f,
                 "decoy sink {destination} is executable or not owned by the system program"
             ),
+            Self::RpcValidationRequired { destination } => write!(
+                f,
+                "decoy sink {destination} must be validated against RPC before atomic use"
+            ),
         }
     }
 }
@@ -99,16 +107,32 @@ impl DecoySink {
         destination: Pubkey,
         allowlist: &[Pubkey],
     ) -> Result<Self, InvalidDecoySink> {
-        TrustedSystemAccount::try_from_tip_allowlist(destination, allowlist).map(Self)
+        TrustedSystemAccount::try_from_tip_allowlist(destination, allowlist).map(|account| Self {
+            account,
+            rpc_validated: false,
+        })
     }
 
     /// Convert an opaque cooker/system-wallet handoff into a transfer sink.
     pub fn from_trusted_system_account(account: TrustedSystemAccount) -> Self {
-        Self(account)
+        Self {
+            account,
+            rpc_validated: false,
+        }
     }
 
     pub fn pubkey(self) -> Pubkey {
-        self.0 .0
+        self.account.0
+    }
+
+    pub(crate) fn require_rpc_validation(self) -> Result<Self, InvalidDecoySink> {
+        if self.rpc_validated {
+            Ok(self)
+        } else {
+            Err(InvalidDecoySink::RpcValidationRequired {
+                destination: self.pubkey(),
+            })
+        }
     }
 
     /// Fetch and prove that a destination is a non-executable, system-owned account.
@@ -125,14 +149,17 @@ impl DecoySink {
         Self::from_rpc_account(destination, &account)
     }
 
-    pub fn from_rpc_account(
+    pub(crate) fn from_rpc_account(
         destination: Pubkey,
         account: &Account,
     ) -> Result<Self, InvalidDecoySink> {
         if account.executable || account.owner != solana_sdk::system_program::ID {
             return Err(InvalidDecoySink::NotSystemWallet { destination });
         }
-        TrustedSystemAccount::from_validated_pubkey(destination).map(Self)
+        TrustedSystemAccount::from_validated_pubkey(destination).map(|account| Self {
+            account,
+            rpc_validated: true,
+        })
     }
 }
 
@@ -199,7 +226,7 @@ fn is_denied_program(destination: &Pubkey) -> bool {
 
 impl StatisticalTransferNoise {
     /// Build statistical noise from provenance-gated transfer sinks.
-    pub fn from_sinks(decoy_destinations: Vec<DecoySink>) -> Self {
+    pub(crate) fn from_sinks(decoy_destinations: Vec<DecoySink>) -> Self {
         Self {
             decoy_destinations: decoy_destinations
                 .into_iter()
@@ -217,7 +244,10 @@ impl StatisticalTransferNoise {
         }
     }
 
-    pub fn with_tips(mut self, tips: &[TrustedSystemAccount]) -> Result<Self, InvalidDecoySink> {
+    pub(crate) fn with_tips(
+        mut self,
+        tips: &[TrustedSystemAccount],
+    ) -> Result<Self, InvalidDecoySink> {
         for tip in tips {
             let sink = DecoySink::from_trusted_system_account(*tip);
             self.decoy_destinations.push(sink.pubkey());

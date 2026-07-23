@@ -55,6 +55,13 @@ impl FuzzyBundleBuilder {
                 "transfer decoys require at least one validated sink".to_string(),
             ));
         }
+        let sinks = sinks
+            .into_iter()
+            .map(|sink| {
+                sink.require_rpc_validation()
+                    .map_err(|error| SupersonicError::InvalidDecoyConfig(error.to_string()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         self.transfer_sink_count = sinks.len();
         self.generators
             .push(Box::new(StatisticalTransferNoise::from_sinks(sinks)));
@@ -374,6 +381,17 @@ mod tests {
         assert!(error
             .to_string()
             .contains("requires validated transfer sinks"));
+    }
+
+    #[test]
+    fn allowlist_provenance_alone_is_not_enough_for_atomic_builder() {
+        let destination = Pubkey::new_unique();
+        let sink = DecoySink::try_tip_allowlisted_from(destination, &[destination]).unwrap();
+        let error = FuzzyBundleBuilder::new(Pubkey::new_unique(), ObfuscationLevel::Light)
+            .with_sinks(vec![sink])
+            .err()
+            .expect("RPC validation must be required");
+        assert!(error.to_string().contains("validated against RPC"));
     }
 
     #[test]
