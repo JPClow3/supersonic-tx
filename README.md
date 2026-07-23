@@ -50,6 +50,10 @@ not hide sponsor-to-cooker funding, timing, account locks, target instruction da
 shared-router use, or activity from human review. Atomic `cast` decoys share the fate of
 the real intent; use isolated campaign mode when that risk is unacceptable.
 
+## Deployments
+
+None recorded. Operator steps: [docs/deploy.md](docs/deploy.md).
+
 ## Verification
 
 ```text
