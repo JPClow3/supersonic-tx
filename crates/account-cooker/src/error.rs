@@ -28,4 +28,10 @@ pub enum CookerError {
     MissingSecretKeyPath { account_index: usize },
     #[error("handoff account {account_index} keypair does not match pubkey")]
     KeypairMismatch { account_index: usize },
+    #[error("refusing to overwrite existing key file: {0}")]
+    KeyFileExists(String),
+    #[error("generated keypairs do not match handoff account metadata")]
+    KeypairMetadataMismatch,
+    #[error("funding sponsor does not match cooker and handoff sponsor")]
+    SponsorMismatch,
 }

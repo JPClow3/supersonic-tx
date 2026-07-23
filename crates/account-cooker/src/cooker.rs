@@ -3,13 +3,16 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     message::Message,
     pubkey::Pubkey,
-    signature::{read_keypair_file, write_keypair_file, Keypair, Signer},
+    signature::{read_keypair_file, Keypair, Signer},
     system_instruction,
     transaction::Transaction,
 };
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::{
     collections::HashSet,
-    fs,
+    fs::{self, OpenOptions},
+    io::Write,
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -90,27 +93,55 @@ impl Cooker {
     pub fn write_keypair_dir(
         out_dir: &Path,
         pairs: &[(CookedRole, Keypair)],
+        accounts: &[CookedAccount],
     ) -> Result<Vec<CookedAccount>, CookerError> {
+        if pairs.len() != accounts.len()
+            || pairs
+                .iter()
+                .zip(accounts)
+                .any(|((role, keypair), account)| {
+                    role != &account.role || keypair.pubkey().to_string() != account.pubkey
+                })
+        {
+            return Err(CookerError::KeypairMetadataMismatch);
+        }
+
         let key_dir = out_dir.join("keys");
         fs::create_dir_all(&key_dir)?;
 
         let mut sink_index = 0;
-        pairs
+        let writes = pairs
             .iter()
             .map(|(role, keypair)| {
                 let relative_path = keypair_relative_path(role, &mut sink_index);
                 let full_path = out_dir.join(&relative_path);
-                write_keypair_file(keypair, full_path.to_string_lossy().as_ref())
-                    .map_err(|error| CookerError::Keypair(error.to_string()))?;
-                Ok(CookedAccount {
-                    role: role.clone(),
-                    pubkey: keypair.pubkey().to_string(),
-                    secret_key_path: Some(relative_path),
-                    funded_lamports: 0,
-                    min_required_lamports: 0,
-                })
+                if full_path.exists() {
+                    return Err(CookerError::KeyFileExists(full_path.display().to_string()));
+                }
+                Ok((relative_path, full_path, keypair))
             })
-            .collect()
+            .collect::<Result<Vec<_>, CookerError>>()?;
+
+        let mut created = Vec::new();
+        for (_, full_path, keypair) in &writes {
+            if let Err(error) = write_keypair_file_new(full_path, keypair) {
+                for path in created {
+                    let _ = fs::remove_file(path);
+                }
+                return Err(error);
+            }
+            created.push(full_path);
+        }
+
+        Ok(accounts
+            .iter()
+            .zip(writes)
+            .map(|(account, (relative_path, _, _))| {
+                let mut account = account.clone();
+                account.secret_key_path = Some(relative_path);
+                account
+            })
+            .collect())
     }
 
     pub fn write_handoff(path: &Path, handoff: &HandoffBundle) -> Result<(), CookerError> {
@@ -134,24 +165,21 @@ impl Cooker {
     pub fn resolve_keypairs(
         handoff: &HandoffBundle,
         handoff_dir: &Path,
-    ) -> Result<Vec<Keypair>, CookerError> {
+    ) -> Result<Vec<(usize, Keypair)>, CookerError> {
         handoff.validate()?;
         handoff
             .accounts
             .iter()
             .enumerate()
-            .map(|(account_index, account)| {
-                let relative_path = account
-                    .secret_key_path
-                    .as_deref()
-                    .ok_or(CookerError::MissingSecretKeyPath { account_index })?;
-                let path = handoff_dir.join(relative_path);
-                let keypair = read_keypair_file(path.to_string_lossy().as_ref())
-                    .map_err(|error| CookerError::Keypair(error.to_string()))?;
-                if keypair.pubkey().to_string() != account.pubkey {
-                    return Err(CookerError::KeypairMismatch { account_index });
+            .filter_map(|(account_index, account)| {
+                if account.role == CookedRole::DrainTarget && account.secret_key_path.is_none() {
+                    None
+                } else {
+                    Some(
+                        resolve_keypair(account, account_index, handoff_dir)
+                            .map(|keypair| (account_index, keypair)),
+                    )
                 }
-                Ok(keypair)
             })
             .collect()
     }
@@ -164,6 +192,13 @@ impl Cooker {
         _handoff_dir: &Path,
     ) -> Result<(), CookerError> {
         handoff.validate()?;
+        let handoff_sponsor = handoff
+            .sponsor_pubkey
+            .parse::<Pubkey>()
+            .map_err(|_| CookerError::SponsorMismatch)?;
+        if sponsor.pubkey() != self.sponsor_pubkey || sponsor.pubkey() != handoff_sponsor {
+            return Err(CookerError::SponsorMismatch);
+        }
         let blockhash = rpc
             .get_latest_blockhash()
             .await
@@ -232,8 +267,7 @@ impl Cooker {
             let fee = rpc
                 .get_fee_for_message(&fee_message)
                 .await
-                .map_err(|error| CookerError::Rpc(error.to_string()))?
-                .ok_or(CookerError::FeeEstimateUnavailable)?;
+                .map_err(|error| CookerError::Rpc(error.to_string()))?;
             let amount = drain_amount(balance, fee, rent_exempt_minimum);
             if amount == 0 {
                 continue;
@@ -245,7 +279,7 @@ impl Cooker {
                     amount,
                 )],
                 Some(&keypair.pubkey()),
-                &[keypair],
+                &[&keypair],
                 blockhash,
             );
             rpc.send_and_confirm_transaction(&transaction)
@@ -356,6 +390,25 @@ fn keypair_relative_path(role: &CookedRole, sink_index: &mut usize) -> String {
     }
 }
 
+fn write_keypair_file_new(path: &Path, keypair: &Keypair) -> Result<(), CookerError> {
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+    let mut file = options.open(path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            CookerError::KeyFileExists(path.display().to_string())
+        } else {
+            CookerError::Io(error)
+        }
+    })?;
+    let encoded = serde_json::to_vec(&keypair.to_bytes().to_vec())
+        .map_err(|error| CookerError::Keypair(error.to_string()))?;
+    file.write_all(&encoded)?;
+    file.sync_all()?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -375,7 +428,7 @@ mod tests {
             min_sink_lamports: 890_880,
         };
         let (mut handoff, pairs) = cooker.generate(&cfg).unwrap();
-        let accounts = Cooker::write_keypair_dir(dir.path(), &pairs).unwrap();
+        let accounts = Cooker::write_keypair_dir(dir.path(), &pairs, &handoff.accounts).unwrap();
         handoff.accounts = accounts;
         let path = dir.path().join("handoff-1.json");
         Cooker::write_handoff(&path, &handoff).unwrap();
@@ -397,7 +450,17 @@ mod tests {
             (CookedRole::DecoySink, Keypair::new()),
         ];
 
-        let accounts = Cooker::write_keypair_dir(dir.path(), &pairs).unwrap();
+        let source_accounts = pairs
+            .iter()
+            .map(|(role, keypair)| CookedAccount {
+                role: role.clone(),
+                pubkey: keypair.pubkey().to_string(),
+                secret_key_path: None,
+                funded_lamports: 9,
+                min_required_lamports: 7,
+            })
+            .collect::<Vec<_>>();
+        let accounts = Cooker::write_keypair_dir(dir.path(), &pairs, &source_accounts).unwrap();
 
         assert_eq!(
             accounts
@@ -410,6 +473,35 @@ mod tests {
                 Some("keys/sink_1.json"),
             ]
         );
+        assert!(accounts
+            .iter()
+            .all(|account| account.funded_lamports == 9 && account.min_required_lamports == 7));
+    }
+
+    #[test]
+    fn second_write_refuses_to_change_existing_key_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let sponsor = Keypair::new();
+        let cooker = Cooker::new_offline(sponsor.pubkey());
+        let cfg = CookerConfig {
+            cluster: "devnet".into(),
+            n_sinks: 1,
+            fund_fee_payer_lamports: 50,
+            fund_sink_lamports: 2,
+            min_fee_payer_lamports: 10,
+            min_sink_lamports: 0,
+        };
+        let (handoff, first_pairs) = cooker.generate(&cfg).unwrap();
+        Cooker::write_keypair_dir(dir.path(), &first_pairs, &handoff.accounts).unwrap();
+        let payer_path = dir.path().join("keys/fee_payer.json");
+        let before = fs::read(&payer_path).unwrap();
+
+        let (second_handoff, second_pairs) = cooker.generate(&cfg).unwrap();
+        let error = Cooker::write_keypair_dir(dir.path(), &second_pairs, &second_handoff.accounts)
+            .unwrap_err();
+
+        assert!(matches!(error, CookerError::KeyFileExists(_)));
+        assert_eq!(fs::read(payer_path).unwrap(), before);
     }
 
     #[test]
@@ -458,5 +550,29 @@ mod tests {
         };
         assert!(target.secret_key_path.is_none());
         assert!(should_skip_drain(&target));
+    }
+
+    #[tokio::test]
+    async fn funding_rejects_mismatched_sponsor_before_rpc() {
+        let configured = Keypair::new();
+        let actual = Keypair::new();
+        let cooker = Cooker::new_offline(configured.pubkey());
+        let cfg = CookerConfig {
+            cluster: "devnet".into(),
+            n_sinks: 1,
+            fund_fee_payer_lamports: 1,
+            fund_sink_lamports: 1,
+            min_fee_payer_lamports: 0,
+            min_sink_lamports: 0,
+        };
+        let (handoff, _) = cooker.generate(&cfg).unwrap();
+        let rpc = RpcClient::new("http://127.0.0.1:1".to_owned());
+
+        let error = cooker
+            .fund_accounts(&rpc, &actual, &handoff, Path::new("."))
+            .await
+            .unwrap_err();
+
+        assert!(matches!(error, CookerError::SponsorMismatch));
     }
 }
