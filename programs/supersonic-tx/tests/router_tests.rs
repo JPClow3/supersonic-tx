@@ -1,4 +1,5 @@
 use anchor_lang::{InstructionData, ToAccountMetas};
+use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, pubkey::Pubkey};
 use solana_program_test::{processor, BanksClientError, ProgramTest};
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
@@ -10,11 +11,22 @@ use solana_sdk::{
 const INVALID_BUNDLE_MANIFEST: u32 = 6000;
 const MISSING_CPI_PROGRAM: u32 = 6002;
 
+fn anchor_entry<'info>(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo<'info>],
+    instruction_data: &[u8],
+) -> ProgramResult {
+    // ProgramTest permits the account slice borrow to be shorter than the AccountInfo
+    // lifetime, while Anchor's generated entrypoint requires them to match.
+    let accounts: &'info [AccountInfo<'info>] = unsafe { std::mem::transmute(accounts) };
+    supersonic_tx::entry(program_id, accounts, instruction_data)
+}
+
 fn program_test() -> ProgramTest {
     ProgramTest::new(
         "supersonic_tx",
         supersonic_tx_core::program_id(),
-        processor!(supersonic_tx::entry),
+        processor!(anchor_entry),
     )
 }
 
@@ -36,16 +48,20 @@ async fn noop_decoy_succeeds() {
         blockhash,
     );
     let simulation = banks.simulate_transaction(transaction).await.unwrap();
-    assert!(simulation.result.is_ok());
     assert!(simulation
-        .logs
+        .result
+        .expect("simulation result missing")
+        .is_ok());
+    assert!(simulation
+        .simulation_details
+        .map(|details| details.logs)
         .unwrap_or_default()
         .iter()
         .any(|log| log.contains("executed zero-op decoy instruction")));
 }
 
 #[tokio::test]
-async fn execute_fuzzy_bundle_rejects_zero_decoys() {
+async fn execute_fuzzy_bundle_rejects_zero_routed_instructions() {
     let (mut banks, payer, blockhash) = program_test().start().await;
     let instruction = Instruction {
         program_id: supersonic_tx::id(),
@@ -56,7 +72,7 @@ async fn execute_fuzzy_bundle_rejects_zero_decoys() {
         .to_account_metas(None),
         data: supersonic_tx::instruction::ExecuteFuzzyBundle {
             bundle_seed: 1,
-            decoy_count: 0,
+            routed_instruction_count: 0,
             instruction_data: Vec::new(),
         }
         .data(),
@@ -72,7 +88,7 @@ async fn execute_fuzzy_bundle_rejects_zero_decoys() {
 }
 
 #[tokio::test]
-async fn execute_fuzzy_bundle_rejects_unproven_count() {
+async fn execute_fuzzy_bundle_rejects_multiple_routed_instructions() {
     let (mut banks, payer, blockhash) = program_test().start().await;
     let instruction = Instruction {
         program_id: supersonic_tx::id(),
@@ -83,7 +99,7 @@ async fn execute_fuzzy_bundle_rejects_unproven_count() {
         .to_account_metas(None),
         data: supersonic_tx::instruction::ExecuteFuzzyBundle {
             bundle_seed: 1,
-            decoy_count: 2,
+            routed_instruction_count: 2,
             instruction_data: Vec::new(),
         }
         .data(),
@@ -110,7 +126,7 @@ async fn execute_fuzzy_bundle_rejects_missing_cpi_target() {
         .to_account_metas(None),
         data: supersonic_tx::instruction::ExecuteFuzzyBundle {
             bundle_seed: 1,
-            decoy_count: 1,
+            routed_instruction_count: 1,
             instruction_data: Vec::new(),
         }
         .data(),
@@ -139,7 +155,7 @@ async fn execute_fuzzy_bundle_rejects_non_executable_cpi_target() {
         accounts,
         data: supersonic_tx::instruction::ExecuteFuzzyBundle {
             bundle_seed: 1,
-            decoy_count: 1,
+            routed_instruction_count: 1,
             instruction_data: Vec::new(),
         }
         .data(),
@@ -174,7 +190,7 @@ async fn execute_fuzzy_bundle_system_transfer_cpi() {
         accounts,
         data: supersonic_tx::instruction::ExecuteFuzzyBundle {
             bundle_seed: 7,
-            decoy_count: 1,
+            routed_instruction_count: 1,
             instruction_data: transfer.data,
         }
         .data(),

@@ -5436,11 +5436,13 @@ name = "supersonic-tx-cli"
 version = "0.1.0"
 dependencies = [
  "account-cooker",
+ "anchor-lang",
  "bincode",
  "clap 4.6.4",
  "serde_json",
  "solana-client",
  "solana-sdk",
+ "supersonic-tx",
  "supersonic-tx-core",
  "supersonic-tx-sdk",
  "tokio",

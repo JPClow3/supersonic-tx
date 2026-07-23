@@ -16,8 +16,10 @@ tokio.workspace = true
 solana-sdk.workspace = true
 solana-client.workspace = true
 account-cooker.workspace = true
+anchor-lang.workspace = true
 supersonic-tx-core.workspace = true
 supersonic-tx-sdk.workspace = true
+supersonic-tx = { path = "../../programs/supersonic-tx" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 bincode.workspace = true

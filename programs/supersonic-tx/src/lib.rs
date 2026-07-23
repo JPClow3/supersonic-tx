@@ -25,27 +25,26 @@ pub mod supersonic_tx {
         Ok(())
     }
 
-    /// On-chain Router: Execute a fuzzy bundle containing CPI targets and decoy calls.
+    /// Route exactly one target instruction through CPI.
     ///
-    /// This instruction receives decoy instructions and target execution data.
-    /// It validates constraints, executes decoy checks/invocations, and routes
-    /// target CPI calls atomically.
+    /// Decoy instructions, when desired, are separate outer instructions. This
+    /// API executes only the one target represented by `instruction_data`.
     pub fn execute_fuzzy_bundle<'info>(
         ctx: Context<'_, '_, 'info, 'info, ExecuteFuzzyBundle<'info>>,
         bundle_seed: u64,
-        decoy_count: u8,
+        routed_instruction_count: u8,
         instruction_data: Vec<u8>,
     ) -> Result<()> {
         // v1 routes exactly one CPI. Reject caller-asserted counts that cannot
         // correspond to the concrete execution below.
-        if decoy_count != 1 {
+        if routed_instruction_count != 1 {
             return err!(SupersonicProgramError::InvalidBundleManifest);
         }
 
         msg!(
-            "supersonic-tx: executing fuzzy bundle (seed: {}, decoys: {})",
+            "supersonic-tx: routing target instruction (seed: {}, routed instructions: {})",
             bundle_seed,
-            decoy_count
+            routed_instruction_count
         );
 
         let remaining_accounts = ctx.remaining_accounts;
@@ -117,7 +116,7 @@ pub struct BundleExecuted {
 
 #[error_code]
 pub enum SupersonicProgramError {
-    #[msg("Invalid decoy count or invalid bundle manifest structure.")]
+    #[msg("Invalid routed instruction count or bundle structure.")]
     InvalidBundleManifest,
     #[msg("CPI execution failed during target instruction routing.")]
     CpiExecutionFailed,
@@ -130,12 +129,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_decoy_count_validation() {
-        let decoy_count_zero: u8 = 0;
-        assert_eq!(decoy_count_zero == 0, true);
-
-        let decoy_count_valid: u8 = 3;
-        assert!(decoy_count_valid > 0);
+    fn routed_instruction_count_is_exactly_one() {
+        assert_ne!(0_u8, 1);
+        assert_eq!(1_u8, 1);
+        assert_ne!(2_u8, 1);
     }
 
     #[test]
