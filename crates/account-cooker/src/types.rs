@@ -1,5 +1,9 @@
 use serde::{de::Deserializer, ser::Serializer, Deserialize, Serialize};
+use solana_sdk::pubkey::Pubkey;
+use std::collections::HashSet;
 use std::path::Path;
+use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -37,6 +41,24 @@ pub enum HandoffValidationError {
         account_index: usize,
         reason: &'static str,
     },
+    #[error("unsupported cluster {0}; expected devnet, mainnet-beta, or localnet")]
+    UnsupportedCluster(String),
+    #[error("handoff must contain at least one account")]
+    EmptyAccounts,
+    #[error("handoff must contain exactly one fee payer")]
+    InvalidFeePayerCount,
+    #[error("invalid sponsor pubkey")]
+    InvalidSponsorPubkey,
+    #[error("account {account_index} has an invalid pubkey")]
+    InvalidAccountPubkey { account_index: usize },
+    #[error("account {account_index} duplicates another pubkey")]
+    DuplicateAccountPubkey { account_index: usize },
+    #[error("account {account_index} requires a secret_key_path")]
+    MissingSecretKeyPath { account_index: usize },
+    #[error("account {account_index} is underfunded in the handoff")]
+    UnderfundedAccount { account_index: usize },
+    #[error("created_at_unix is invalid")]
+    InvalidCreatedAt,
 }
 
 impl HandoffBundle {
@@ -66,8 +88,52 @@ impl HandoffBundle {
                 self.schema_version,
             ));
         }
+        if !matches!(
+            self.cluster.as_str(),
+            "devnet" | "mainnet-beta" | "localnet"
+        ) {
+            return Err(HandoffValidationError::UnsupportedCluster(
+                self.cluster.clone(),
+            ));
+        }
+        if Pubkey::from_str(&self.sponsor_pubkey).is_err() {
+            return Err(HandoffValidationError::InvalidSponsorPubkey);
+        }
+        if self.accounts.is_empty() {
+            return Err(HandoffValidationError::EmptyAccounts);
+        }
+        if self
+            .accounts
+            .iter()
+            .filter(|account| account.role == CookedRole::FeePayer)
+            .count()
+            != 1
+        {
+            return Err(HandoffValidationError::InvalidFeePayerCount);
+        }
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_secs() as i64)
+            .unwrap_or(i64::MAX);
+        if self.created_at_unix <= 0 || self.created_at_unix > now.saturating_add(300) {
+            return Err(HandoffValidationError::InvalidCreatedAt);
+        }
 
+        let mut pubkeys = HashSet::new();
         for (account_index, account) in self.accounts.iter().enumerate() {
+            let pubkey = Pubkey::from_str(&account.pubkey)
+                .map_err(|_| HandoffValidationError::InvalidAccountPubkey { account_index })?;
+            if !pubkeys.insert(pubkey) {
+                return Err(HandoffValidationError::DuplicateAccountPubkey { account_index });
+            }
+            if account.funded_lamports < account.min_required_lamports {
+                return Err(HandoffValidationError::UnderfundedAccount { account_index });
+            }
+            if matches!(account.role, CookedRole::FeePayer | CookedRole::DecoySink)
+                && account.secret_key_path.is_none()
+            {
+                return Err(HandoffValidationError::MissingSecretKeyPath { account_index });
+            }
             if let Some(path) = account.secret_key_path.as_deref() {
                 validate_secret_key_path(path).map_err(|reason| {
                     HandoffValidationError::InvalidSecretKeyPath {
@@ -156,6 +222,7 @@ fn validate_secret_key_path(path: &str) -> Result<(), &'static str> {
         || (path.len() >= 2
             && path.as_bytes()[0].is_ascii_alphabetic()
             && path.as_bytes()[1] == b':')
+        || path.contains(':')
     {
         return Err("path must be relative");
     }
@@ -177,9 +244,9 @@ fn looks_like_embedded_key(value: &str) -> bool {
     }
 
     trimmed.len() >= 40
-        && trimmed
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '+' | '/' | '='))
+        && trimmed.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '+' | '/' | '=')
+        })
 }
 
 #[cfg(test)]
@@ -195,7 +262,7 @@ mod tests {
             sponsor_pubkey: "11111111111111111111111111111111".into(),
             accounts: vec![CookedAccount {
                 role: CookedRole::FeePayer,
-                pubkey: "FeePayer111111111111111111111111111111111".into(),
+                pubkey: "GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9".into(),
                 secret_key_path: Some("keys/fee_payer.json".into()),
                 funded_lamports: 50_000_000,
                 min_required_lamports: 10_000_000,
@@ -246,7 +313,7 @@ mod tests {
             2,
             "devnet".into(),
             1721750400,
-            "sponsor".into(),
+            "11111111111111111111111111111111".into(),
             vec![],
             vec![],
         )
@@ -260,10 +327,10 @@ mod tests {
             1,
             "devnet".into(),
             1721750400,
-            "sponsor".into(),
+            "11111111111111111111111111111111".into(),
             vec![CookedAccount {
                 role: CookedRole::FeePayer,
-                pubkey: "FeePayer111111111111111111111111111111111".into(),
+                pubkey: "GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9".into(),
                 secret_key_path: Some("/tmp/keypair.json".into()),
                 funded_lamports: 50_000_000,
                 min_required_lamports: 10_000_000,
@@ -308,6 +375,57 @@ mod tests {
         assert!(HandoffBundle::try_from_json(&json).is_err());
     }
 
+    #[test]
+    fn rejects_missing_fee_payer_secret_duplicate_and_underfunding() {
+        let payer = "GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9".to_string();
+        let mut handoff = HandoffBundle {
+            schema_version: 1,
+            cluster: "devnet".into(),
+            created_at_unix: 1_721_750_400,
+            sponsor_pubkey: "11111111111111111111111111111111".into(),
+            accounts: vec![CookedAccount {
+                role: CookedRole::FeePayer,
+                pubkey: payer.clone(),
+                secret_key_path: None,
+                funded_lamports: 10,
+                min_required_lamports: 10,
+            }],
+            warnings: vec![],
+        };
+        assert!(matches!(
+            handoff.validate(),
+            Err(HandoffValidationError::MissingSecretKeyPath { .. })
+        ));
+
+        handoff.accounts[0].secret_key_path = Some("keys/payer.json".into());
+        handoff.accounts.push(CookedAccount {
+            role: CookedRole::DecoySink,
+            pubkey: payer,
+            secret_key_path: Some("keys/sink.json".into()),
+            funded_lamports: 10,
+            min_required_lamports: 10,
+        });
+        assert!(matches!(
+            handoff.validate(),
+            Err(HandoffValidationError::DuplicateAccountPubkey { .. })
+        ));
+
+        handoff.accounts.pop();
+        handoff.accounts[0].funded_lamports = 9;
+        assert!(matches!(
+            handoff.validate(),
+            Err(HandoffValidationError::UnderfundedAccount { .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_unsupported_cluster_and_drive_relative_path() {
+        let mut json = handoff_json_with_path("C:keypair.json");
+        assert!(HandoffBundle::try_from_json(&json).is_err());
+        json = json.replace("\"devnet\"", "\"testnet\"");
+        assert!(HandoffBundle::try_from_json(&json).is_err());
+    }
+
     fn handoff_json_with_path(path: &str) -> String {
         serde_json::json!({
             "schema_version": 1,
@@ -316,7 +434,7 @@ mod tests {
             "sponsor_pubkey": "11111111111111111111111111111111",
             "accounts": [{
                 "role": "FeePayer",
-                "pubkey": "FeePayer111111111111111111111111111111111",
+                "pubkey": "GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9",
                 "secret_key_path": path,
                 "funded_lamports": 50_000_000,
                 "min_required_lamports": 10_000_000
