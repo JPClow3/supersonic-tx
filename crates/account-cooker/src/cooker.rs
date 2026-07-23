@@ -63,11 +63,7 @@ impl Cooker {
                         cfg.fund_sink_lamports,
                         cfg.min_sink_lamports,
                     ),
-                    CookedRole::DrainTarget => (
-                        "keys/drain_target.json".to_owned(),
-                        0,
-                        0,
-                    ),
+                    CookedRole::DrainTarget => ("keys/drain_target.json".to_owned(), 0, 0),
                 };
                 CookedAccount {
                     role: role.clone(),
@@ -119,7 +115,10 @@ impl Cooker {
 
     pub fn write_handoff(path: &Path, handoff: &HandoffBundle) -> Result<(), CookerError> {
         handoff.validate()?;
-        if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+        if let Some(parent) = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+        {
             fs::create_dir_all(parent)?;
         }
         let json = serde_json::to_string_pretty(handoff)?;
@@ -178,10 +177,17 @@ impl Cooker {
                 .pubkey
                 .parse::<Pubkey>()
                 .map_err(|error| CookerError::Rpc(format!("invalid account pubkey: {error}")))?;
-            let instruction =
-                system_instruction::transfer(&sponsor.pubkey(), &destination, account.funded_lamports);
-            let transaction =
-                Transaction::new_signed_with_payer(&[instruction], Some(&sponsor.pubkey()), &[sponsor], blockhash);
+            let instruction = system_instruction::transfer(
+                &sponsor.pubkey(),
+                &destination,
+                account.funded_lamports,
+            );
+            let transaction = Transaction::new_signed_with_payer(
+                &[instruction],
+                Some(&sponsor.pubkey()),
+                &[sponsor],
+                blockhash,
+            );
             rpc.send_and_confirm_transaction(&transaction)
                 .await
                 .map_err(|error| CookerError::Rpc(error.to_string()))?;
@@ -232,8 +238,16 @@ impl Cooker {
             if amount == 0 {
                 continue;
             }
-            let transaction =
-                Transaction::new_signed_with_payer(&[system_instruction::transfer(&keypair.pubkey(), destination, amount)], Some(&keypair.pubkey()), &[keypair], blockhash);
+            let transaction = Transaction::new_signed_with_payer(
+                &[system_instruction::transfer(
+                    &keypair.pubkey(),
+                    destination,
+                    amount,
+                )],
+                Some(&keypair.pubkey()),
+                &[keypair],
+                blockhash,
+            );
             rpc.send_and_confirm_transaction(&transaction)
                 .await
                 .map_err(|error| CookerError::Rpc(error.to_string()))?;
@@ -247,14 +261,13 @@ impl Cooker {
     ) -> Result<(), CookerError> {
         let mut shortfalls = Vec::new();
         for account in &handoff.accounts {
-            let required = account.min_required_lamports
-                .saturating_add(
-                    if account.role == CookedRole::FeePayer {
-                        estimated_fees
-                    } else {
-                        0
-                    },
-                );
+            let required = account.min_required_lamports.saturating_add(
+                if account.role == CookedRole::FeePayer {
+                    estimated_fees
+                } else {
+                    0
+                },
+            );
             if account.funded_lamports < required {
                 shortfalls.push(format!(
                     "{} shortfall {} lamports",
@@ -322,7 +335,9 @@ fn resolve_keypair(
 }
 
 fn drain_amount(balance: u64, fee: u64, rent_exempt_minimum: u64) -> u64 {
-    balance.saturating_sub(fee).saturating_sub(rent_exempt_minimum)
+    balance
+        .saturating_sub(fee)
+        .saturating_sub(rent_exempt_minimum)
 }
 
 fn should_skip_drain(account: &CookedAccount) -> bool {
