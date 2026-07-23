@@ -138,17 +138,25 @@ impl DecoySink {
     /// Fetch and prove that a destination is a non-executable, system-owned account.
     pub async fn validate_on_chain(
         rpc: &RpcClient,
-        destination: Pubkey,
+        trusted: TrustedSystemAccount,
     ) -> Result<Self, InvalidDecoySink> {
+        let destination = trusted.pubkey();
         let account = rpc.get_account(&destination).await.map_err(|error| {
             InvalidDecoySink::RpcValidation {
                 destination,
                 reason: error.to_string(),
             }
         })?;
-        Self::from_rpc_account(destination, &account)
+        if account.executable || account.owner != solana_sdk::system_program::ID {
+            return Err(InvalidDecoySink::NotSystemWallet { destination });
+        }
+        Ok(Self {
+            account: trusted,
+            rpc_validated: true,
+        })
     }
 
+    #[cfg(test)]
     pub(crate) fn from_rpc_account(
         destination: Pubkey,
         account: &Account,
@@ -164,6 +172,10 @@ impl DecoySink {
 }
 
 impl TrustedSystemAccount {
+    pub fn pubkey(&self) -> Pubkey {
+        self.0
+    }
+
     fn from_validated_pubkey(destination: Pubkey) -> Result<Self, InvalidDecoySink> {
         if is_denied_program(&destination) {
             return Err(InvalidDecoySink::DeniedProgram { destination });

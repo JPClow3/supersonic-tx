@@ -190,12 +190,25 @@ impl FuzzyBundleBuilder {
         recent_blockhash: Hash,
         address_lookup_table_accounts: &[AddressLookupTableAccount],
     ) -> Result<BuiltBundle, SupersonicError> {
-        let mut manifest = self.build_manifest()?;
+        Self::build_manifest_bundle(
+            self.payer,
+            self.build_manifest()?,
+            recent_blockhash,
+            address_lookup_table_accounts,
+        )
+    }
 
+    /// Compile a prepared manifest through the same MTU shrink loop as atomic bundles.
+    pub fn build_manifest_bundle(
+        payer: Pubkey,
+        mut manifest: BundleManifest,
+        recent_blockhash: Hash,
+        address_lookup_table_accounts: &[AddressLookupTableAccount],
+    ) -> Result<BuiltBundle, SupersonicError> {
         loop {
             let instructions = Self::assemble_instructions(&manifest);
             let message = Self::compile_v0_message(
-                &self.payer,
+                &payer,
                 &instructions,
                 address_lookup_table_accounts,
                 recent_blockhash,

@@ -1,6 +1,6 @@
 use solana_sdk::instruction::Instruction;
 use solana_sdk::pubkey::Pubkey;
-use supersonic_tx_core::{ObfuscationLevel, SupersonicError};
+use supersonic_tx_core::{BundleManifest, ObfuscationLevel, SupersonicError};
 
 use crate::{DecoySink, FuzzyBundleBuilder};
 
@@ -14,7 +14,7 @@ pub enum PlannedTxKind {
 #[derive(Debug, Clone)]
 pub struct PlannedTx {
     pub kind: PlannedTxKind,
-    pub instructions: Vec<Instruction>,
+    pub manifest: BundleManifest,
 }
 
 #[derive(Debug, Clone)]
@@ -78,7 +78,7 @@ impl CampaignPlanner {
                 .build_manifest()?;
             txs.push(PlannedTx {
                 kind: PlannedTxKind::DecoyOnly,
-                instructions: FuzzyBundleBuilder::assemble_instructions(&manifest),
+                manifest,
             });
         }
 
@@ -91,7 +91,7 @@ impl CampaignPlanner {
         };
         txs.push(PlannedTx {
             kind: PlannedTxKind::RealIntent,
-            instructions: FuzzyBundleBuilder::assemble_instructions(&real_manifest),
+            manifest: real_manifest,
         });
 
         Ok(CampaignPlan { txs })
@@ -134,15 +134,16 @@ mod tests {
             .iter()
             .filter(|transaction| transaction.kind == PlannedTxKind::DecoyOnly)
         {
-            assert!(!transaction.instructions.contains(&target));
+            assert!(!transaction.manifest.target_instructions.contains(&target));
         }
         let real = plan
             .txs
             .iter()
             .find(|transaction| transaction.kind == PlannedTxKind::RealIntent)
             .unwrap();
-        assert!(real.instructions.contains(&target));
-        assert!(real.instructions.iter().all(|instruction| {
+        let real_instructions = FuzzyBundleBuilder::assemble_instructions(&real.manifest);
+        assert!(real_instructions.contains(&target));
+        assert!(real_instructions.iter().all(|instruction| {
             instruction == &target
                 || instruction.program_id == solana_sdk::compute_budget::id()
                 || instruction.program_id.to_string()

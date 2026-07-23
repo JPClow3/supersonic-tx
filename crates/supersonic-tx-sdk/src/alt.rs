@@ -3,6 +3,7 @@ use solana_sdk::account::Account;
 use solana_sdk::address_lookup_table::{
     program as address_lookup_table_program, state::AddressLookupTable, AddressLookupTableAccount,
 };
+use solana_sdk::clock::Slot;
 use solana_sdk::pubkey::Pubkey;
 use supersonic_tx_core::SupersonicError;
 
@@ -17,12 +18,24 @@ impl AltResolver {
             .get_account(address)
             .await
             .map_err(|error| SupersonicError::AltFetchFailed(error.to_string()))?;
-        Self::from_account(address, &account)
+        let current_slot = rpc
+            .get_slot()
+            .await
+            .map_err(|error| SupersonicError::AltFetchFailed(error.to_string()))?;
+        Self::from_account_at_slot(address, &account, current_slot)
     }
 
     pub fn from_account(
         address: &Pubkey,
         account: &Account,
+    ) -> Result<AddressLookupTableAccount, SupersonicError> {
+        Self::from_account_at_slot(address, account, Slot::MAX - 1)
+    }
+
+    pub fn from_account_at_slot(
+        address: &Pubkey,
+        account: &Account,
+        current_slot: Slot,
     ) -> Result<AddressLookupTableAccount, SupersonicError> {
         if account.owner != address_lookup_table_program::id() {
             return Err(SupersonicError::AltFetchFailed(format!(
@@ -31,6 +44,16 @@ impl AltResolver {
         }
         let table = AddressLookupTable::deserialize(&account.data)
             .map_err(|error| SupersonicError::AltFetchFailed(error.to_string()))?;
+        if table.meta.deactivation_slot != Slot::MAX {
+            return Err(SupersonicError::AltFetchFailed(format!(
+                "{address} is deactivated"
+            )));
+        }
+        if table.meta.last_extended_slot >= current_slot {
+            return Err(SupersonicError::AltFetchFailed(format!(
+                "{address} was extended in the current slot and is not active yet"
+            )));
+        }
         Ok(AddressLookupTableAccount {
             key: *address,
             addresses: table.addresses.to_vec(),
