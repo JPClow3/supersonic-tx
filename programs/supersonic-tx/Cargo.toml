@@ -19,3 +19,9 @@ default = []
 [dependencies]
 anchor-lang.workspace = true
 solana-program.workspace = true
+
+[dev-dependencies]
+solana-program-test = "~1.18"
+solana-sdk.workspace = true
+tokio.workspace = true
+supersonic-tx-core = { path = "../../crates/supersonic-tx-core" }

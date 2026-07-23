@@ -1,51 +1,134 @@
-use anchor_lang::prelude::*;
-use supersonic_tx::{
-    BundleExecuted, DecoyExecuted, SupersonicProgramError,
+use anchor_lang::{InstructionData, ToAccountMetas};
+use solana_program_test::{processor, BanksClientError, ProgramTest};
+use solana_sdk::{
+    instruction::{AccountMeta, Instruction},
+    signature::Signer,
+    system_program,
+    transaction::Transaction,
 };
 
-#[test]
-fn test_noop_decoy_event_creation() {
-    let authority = Pubkey::new_unique();
-    let seed = 42u64;
-    let timestamp = 1700000000i64;
+const INVALID_BUNDLE_MANIFEST: u32 = 6000;
 
-    let event = DecoyExecuted {
-        authority,
-        entropy_seed: seed,
-        timestamp,
-    };
-
-    assert_eq!(event.authority, authority);
-    assert_eq!(event.entropy_seed, 42);
-    assert_eq!(event.timestamp, 1700000000);
+fn program_test() -> ProgramTest {
+    ProgramTest::new(
+        "supersonic_tx",
+        supersonic_tx::id(),
+        processor!(supersonic_tx::entry),
+    )
 }
 
-#[test]
-fn test_execute_fuzzy_bundle_manifest_validation() {
-    let authority = Pubkey::new_unique();
-    let bundle_seed = 1001u64;
-    let decoy_count_invalid = 0u8;
-    let decoy_count_valid = 4u8;
-
-    assert_eq!(decoy_count_invalid == 0, true);
-    assert!(decoy_count_valid > 0);
-
-    let event = BundleExecuted {
-        authority,
-        bundle_seed,
-        decoy_count: decoy_count_valid,
-        timestamp: 1700000000,
+#[tokio::test]
+async fn noop_decoy_succeeds() {
+    let (mut banks, payer, blockhash) = program_test().start().await;
+    let instruction = Instruction {
+        program_id: supersonic_tx::id(),
+        accounts: supersonic_tx::accounts::NoopDecoy {
+            authority: payer.pubkey(),
+        }
+        .to_account_metas(None),
+        data: supersonic_tx::instruction::NoopDecoy { entropy_seed: 42 }.data(),
     };
-
-    assert_eq!(event.authority, authority);
-    assert_eq!(event.bundle_seed, 1001);
-    assert_eq!(event.decoy_count, 4);
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&payer.pubkey()),
+        &[&payer],
+        blockhash,
+    );
+    banks.process_transaction(transaction).await.unwrap();
 }
 
-#[test]
-fn test_program_error_variants() {
-    let manifest_err = SupersonicProgramError::InvalidBundleManifest;
-    let cpi_err = SupersonicProgramError::CpiExecutionFailed;
+#[tokio::test]
+async fn execute_fuzzy_bundle_rejects_zero_decoys() {
+    let (mut banks, payer, blockhash) = program_test().start().await;
+    let instruction = Instruction {
+        program_id: supersonic_tx::id(),
+        accounts: supersonic_tx::accounts::ExecuteFuzzyBundle {
+            authority: payer.pubkey(),
+            system_program: system_program::ID,
+        }
+        .to_account_metas(None),
+        data: supersonic_tx::instruction::ExecuteFuzzyBundle {
+            bundle_seed: 1,
+            decoy_count: 0,
+            instruction_data: Vec::new(),
+        }
+        .data(),
+    };
+    let transaction = Transaction::new_signed_with_payer(
+        &[missing_cpi],
+        Some(&payer.pubkey()),
+        &[&payer],
+        blockhash,
+    );
+    let error = banks.process_transaction(transaction).await.unwrap_err();
+    assert_custom_error(error, INVALID_BUNDLE_MANIFEST);
+}
 
-    assert_ne!(manifest_err, cpi_err);
+#[tokio::test]
+async fn execute_fuzzy_bundle_rejects_missing_cpi_target() {
+    let (mut banks, payer, blockhash) = program_test().start().await;
+    let instruction = Instruction {
+        program_id: supersonic_tx::id(),
+        accounts: supersonic_tx::accounts::ExecuteFuzzyBundle {
+            authority: payer.pubkey(),
+            system_program: system_program::ID,
+        }
+        .to_account_metas(None),
+        data: supersonic_tx::instruction::ExecuteFuzzyBundle {
+            bundle_seed: 1,
+            decoy_count: 1,
+            instruction_data: Vec::new(),
+        }
+        .data(),
+    };
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&payer.pubkey()),
+        &[&payer],
+        blockhash,
+    );
+    assert!(banks.process_transaction(transaction).await.is_err());
+}
+
+#[tokio::test]
+async fn execute_fuzzy_bundle_system_transfer_cpi() {
+    let (mut banks, payer, blockhash) = program_test().start().await;
+    let recipient = solana_sdk::pubkey::Pubkey::new_unique();
+    let transfer = solana_sdk::system_instruction::transfer(&payer.pubkey(), &recipient, 1);
+    let mut accounts = supersonic_tx::accounts::ExecuteFuzzyBundle {
+        authority: payer.pubkey(),
+        system_program: system_program::ID,
+    }
+    .to_account_metas(None);
+    accounts.extend([
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(payer.pubkey(), true),
+        AccountMeta::new(recipient, false),
+    ]);
+    let instruction = Instruction {
+        program_id: supersonic_tx::id(),
+        accounts,
+        data: supersonic_tx::instruction::ExecuteFuzzyBundle {
+            bundle_seed: 7,
+            decoy_count: 1,
+            instruction_data: transfer.data,
+        }
+        .data(),
+    };
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&payer.pubkey()),
+        &[&payer],
+        blockhash,
+    );
+    banks.process_transaction(transaction).await.unwrap();
+    assert_eq!(banks.get_balance(recipient).await.unwrap(), 1);
+}
+
+fn assert_custom_error(error: BanksClientError, expected_code: u32) {
+    let debug = format!("{error:?}");
+    assert!(
+        debug.contains(&format!("Custom({expected_code})")),
+        "expected Anchor custom error {expected_code}, got {debug}"
+    );
 }
