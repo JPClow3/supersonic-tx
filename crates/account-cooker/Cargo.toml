@@ -1,0 +1,17 @@
+[package]
+name = "account-cooker"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fresh Solana keypairs, sponsor funding, and handoff JSON for supersonic-tx"
+
+[dependencies]
+solana-sdk.workspace = true
+solana-client.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true

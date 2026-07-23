@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "programs/supersonic-tx",
+    "crates/account-cooker",
     "crates/supersonic-tx-core",
     "crates/supersonic-tx-sdk",
     "crates/supersonic-tx-cli",
