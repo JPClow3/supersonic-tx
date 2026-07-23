@@ -7,6 +7,7 @@ use solana_sdk::system_instruction;
 use supersonic_tx_core::types::{ObfuscationLevel, SupersonicError};
 use supersonic_tx_core::MAX_TX_PAYLOAD_BYTES;
 use supersonic_tx_sdk::FuzzyBundleBuilder;
+use std::io::{Error as IoError, ErrorKind};
 use std::str::FromStr;
 
 #[derive(Parser, Debug)]
@@ -48,6 +49,10 @@ enum Commands {
         /// Address Lookup Table (ALT) pubkey for V0 transaction compression (optional)
         #[arg(long)]
         alt: Option<String>,
+
+        /// Refuse until Task 12 signing support is available
+        #[arg(long)]
+        send: bool,
     },
     /// Simulate decoy bundle entropy and transaction size without broadcasting.
     Simulate {
@@ -88,6 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             rpc_url,
             keypair,
             alt,
+            send,
         } => {
             println!("🚀 supersonic-tx: Preparing fuzzy bundle...");
             let target_pubkey = Pubkey::from_str(&target)?;
@@ -118,9 +124,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 vec![]
             };
 
-            let tx = builder.build_versioned_transaction(Hash::new_unique(), &alt_accounts)?;
-            let serialized_bytes = bincode::serialize(&tx)?;
-            let byte_size = serialized_bytes.len();
+            let message = builder.build_versioned_message(Hash::new_unique(), &alt_accounts)?;
+            let byte_size = FuzzyBundleBuilder::estimate_tx_size(&message)?;
 
             if byte_size > MAX_TX_PAYLOAD_BYTES {
                 return Err(Box::new(SupersonicError::TransactionSizeExceeded(byte_size)));
@@ -139,25 +144,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("   Serialized Size    : {} / {} bytes ({:.2}% MTU)", byte_size, MAX_TX_PAYLOAD_BYTES, fill_pct);
             println!("   RPC Endpoint      : {}", rpc_url);
 
-            if !is_ephemeral {
-                use solana_client::nonblocking::rpc_client::RpcClient;
-                println!("\n📡 Broadcasting transaction to {}...", rpc_url);
-                let client = RpcClient::new(rpc_url);
-
-                // Get a real recent blockhash for the network
-                let recent_blockhash = client.get_latest_blockhash().await?;
-                let tx = builder.build_versioned_transaction(recent_blockhash, &alt_accounts)?;
-
-                // Note: In a fully complete implementation, we'd sign with the keypair here.
-                // Currently build_versioned_transaction populates dummy signatures.
-                // For this bounty proof-of-concept, we attempt to send it.
-                match client.send_transaction(&tx).await {
-                    Ok(sig) => println!("✨ Transaction obfuscated and broadcasted! Signature: {}", sig),
-                    Err(e) => println!("❌ Broadcast failed: {}", e),
-                }
-            } else {
-                println!("\n✨ Dry run complete. Transaction obfuscated! Decoys interleaved across execution Graph.");
+            if send {
+                return Err(Box::new(IoError::new(
+                    ErrorKind::Unsupported,
+                    "sending is unavailable until Task 12 adds sign_versioned_tx; refusing to broadcast an unsigned message",
+                )));
             }
+
+            println!(
+                "\n✨ Dry run complete. Unsigned message serialized for estimation; no transaction was broadcast."
+            );
         }
         Commands::Simulate { level, target, amount } => {
             let obfuscation_level = parse_obfuscation_level(&level);
@@ -173,9 +169,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .add_target_instruction(target_ix);
             let manifest = builder.build_manifest()?;
 
-            let tx = builder.build_versioned_transaction(Hash::new_unique(), &[])?;
-            let serialized = bincode::serialize(&tx)?;
-            let byte_size = serialized.len();
+            let message = builder.build_versioned_message(Hash::new_unique(), &[])?;
+            let byte_size = FuzzyBundleBuilder::estimate_tx_size(&message)?;
             let fill_pct = (byte_size as f64 / MAX_TX_PAYLOAD_BYTES as f64) * 100.0;
 
             let target_count = manifest.target_instructions.len();
@@ -256,13 +251,14 @@ mod tests {
         let args = vec!["supersonic-tx", "cast", "--target", "4vMGoEDFfVJjF9y85sSvh4WwP76d9B54tE86b8xXN6T"];
         let cli = Cli::try_parse_from(args).expect("Failed to parse default cast CLI args");
         match cli.command {
-            Commands::Cast { target, amount, level, rpc_url, keypair, alt } => {
+            Commands::Cast { target, amount, level, rpc_url, keypair, alt, send } => {
                 assert_eq!(target, "4vMGoEDFfVJjF9y85sSvh4WwP76d9B54tE86b8xXN6T");
                 assert_eq!(amount, 100_000);
                 assert_eq!(level, "standard");
                 assert_eq!(rpc_url, "https://api.devnet.solana.com");
                 assert_eq!(keypair, None);
                 assert_eq!(alt, None);
+                assert!(!send);
             }
             _ => panic!("Expected Cast subcommand"),
         }
@@ -277,17 +273,19 @@ mod tests {
             "--level", "paranoid",
             "--rpc-url", "https://api.mainnet-beta.solana.com",
             "--keypair", "/tmp/id.json",
-            "--alt", "Alt1111111111111111111111111111111111111111"
+            "--alt", "Alt1111111111111111111111111111111111111111",
+            "--send"
         ];
         let cli = Cli::try_parse_from(args).expect("Failed to parse full cast CLI args");
         match cli.command {
-            Commands::Cast { target, amount, level, rpc_url, keypair, alt } => {
+            Commands::Cast { target, amount, level, rpc_url, keypair, alt, send } => {
                 assert_eq!(target, "4vMGoEDFfVJjF9y85sSvh4WwP76d9B54tE86b8xXN6T");
                 assert_eq!(amount, 500_000);
                 assert_eq!(level, "paranoid");
                 assert_eq!(rpc_url, "https://api.mainnet-beta.solana.com");
                 assert_eq!(keypair, Some("/tmp/id.json".to_string()));
                 assert_eq!(alt, Some("Alt1111111111111111111111111111111111111111".to_string()));
+                assert!(send);
             }
             _ => panic!("Expected Cast subcommand"),
         }
@@ -337,9 +335,9 @@ mod tests {
         assert!(manifest.decoy_instructions.len() > 0);
         assert_eq!(manifest.len(), manifest.target_instructions.len() + manifest.decoy_instructions.len());
 
-        let tx = builder.build_versioned_transaction(Hash::new_unique(), &[]).unwrap();
-        let serialized = bincode::serialize(&tx).unwrap();
-        assert!(serialized.len() <= MAX_TX_PAYLOAD_BYTES);
+        let message = builder.build_versioned_message(Hash::new_unique(), &[]).unwrap();
+        let byte_size = FuzzyBundleBuilder::estimate_tx_size(&message).unwrap();
+        assert!(byte_size <= MAX_TX_PAYLOAD_BYTES);
     }
 
     #[test]
@@ -352,9 +350,8 @@ mod tests {
             .add_target_instruction(target_ix);
         let manifest = builder.build_manifest().unwrap();
 
-        let tx = builder.build_versioned_transaction(Hash::new_unique(), &[]).unwrap();
-        let serialized = bincode::serialize(&tx).unwrap();
-        let byte_size = serialized.len();
+        let message = builder.build_versioned_message(Hash::new_unique(), &[]).unwrap();
+        let byte_size = FuzzyBundleBuilder::estimate_tx_size(&message).unwrap();
 
         assert!(byte_size <= MAX_TX_PAYLOAD_BYTES);
         let fill_pct = (byte_size as f64 / MAX_TX_PAYLOAD_BYTES as f64) * 100.0;
