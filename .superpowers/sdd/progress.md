@@ -73,3 +73,44 @@ Full status: `.superpowers/sdd/briefs/prod-bugfix-report-2026-07-23.md`.
 Task 8: complete (commits 28d4d9b..050c203, review clean after panic/path fix)
 Task 9: complete (commits 050c203..1f1eb31, review clean); minors: unused _handoff_dir, /tmp in duplicate-pubkey test
 Task 10: complete (commits 1f1eb31..7e41014, review clean); minors: cook clap coverage, dry-run advisory only
+Task 11: complete (commits 7e41014..7845e55, review clean); minor: brittle BanksClientError string match; C3 CPI honesty addressed
+
+## Prod bugfix reconciliation
+
+Evidence basis: `prod-bugfix-report-2026-07-23.md`, the committed source tree, and
+recent git history. Statuses below follow the task numbering in the checked plan.
+
+| Task | Status | Evidence / qualification |
+| --- | --- | --- |
+| 12 Deploy path documentation | DONE | `docs/deploy.md`, README link, commit `19497ef` (follow-up to `46d1a17`) |
+| 13 AltResolver | DONE | Real RPC account fetch, ALT owner/state decode, CLI non-ALT fallback; `alt.rs`, `8e7fd10` |
+| 14 Signing + real simulate/send | DONE | `sign.rs` signs and rejects default signatures; RPC simulation and gated send; `8e7fd10`, `a27dd1d` |
+| 15 CLI cast/simulate honesty | DONE | Live blockhash/fee/balance checks, handoff/keypair loading, real ALT fallback, `--send`; `b38a94a`, `a27dd1d`, `8e7fd10` |
+| 16 Campaign planner | DONE | `campaign.rs`, isolated real intent and validated decoy planning; `8e7fd10` |
+| 17 CLI campaign | DONE | Campaign command, default isolation, best-effort decoys/ fatal real intent; `8e7fd10`, `b38a94a` |
+| 18 CI + lockfile | PARTIAL | `.github/workflows/ci.yml` and tracked `Cargo.lock` in `46d1a17`; no Linux CI result yet |
+| 19 Honest docs | DONE | README/ARCHITECTURE/info limitations and deployment link; `46d1a17`, `19497ef` |
+| 20 Bar C verification | PARTIAL | Source-policy checks pass, but WDAC blocks local Cargo and Anchor is absent; no remote green gate or deployment smoke evidence |
+
+Remaining TODO for the SDD controller:
+1. Obtain and record passing Linux `cargo test --workspace --locked` and `anchor build`.
+2. Deploy the router on the intended cluster and record the program ID plus smoke result.
+3. Re-run Task 20’s complete checklist after those gates; do not claim bar-C/real-SOL readiness before then.
+
+Note: the user callout labels docs as Task 18 and CI as Task 19, but the checked
+plan assigns CI to Task 18 and docs to Task 19.
+Task 12: complete (commit 19497ef, review clean/Approved); notes: local anchor build skipped; deploy.md omitted keypair-never-commit warning (restore in final docs polish if needed)
+
+## Full bug sweep fix — 2026-07-23
+
+Critical C1 and 13 source-level Important findings fixed in `8c8bbe3`,
+`9e4099a`, `b3fe184`, and `0ac4902`. Fixes cover non-destructive cooker keys,
+metadata/sponsor/cluster/key-resolution invariants, campaign reserve/MTU/drain,
+real router CPI semantics, ALT lifecycle fallback, keyless assembly, provenance,
+Windows custody guidance, and tracked acceptance documents.
+
+Important I12 remains an external release gate: WDAC error 4551 blocks local
+Rust build scripts, Anchor is absent, and the repository has no remote,
+deployment, CI result, or smoke signature. Do not claim release readiness until
+those gates pass. Full mapping:
+`.superpowers/sdd/briefs/full-bug-sweep-fix-report-2026-07-23.md`.
