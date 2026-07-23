@@ -64,7 +64,8 @@ verification only). Added signed RPC simulation/send, real ALT resolution, route
 defaults with executable deployment checks, honest CPI execution/events, strict cooker
 handoffs, campaign isolation, runtime test source, Linux CI, and honest product docs.
 
-Commits: `8e7fd10`, `a27dd1d`, `b13cacb`, `7781d77`, `d05f5e9`, `46d1a17`
+Commits: `8e7fd10`, `a27dd1d`, `b13cacb`, `2e5997a`, `681be5c`,
+`7781d77`, `d05f5e9`, `46d1a17`
 plus cooker/CLI commits `0c36e31`, `1f1eb31`, `b38a94a`.
 
 Local blocker: WDAC error 4551 blocks generated Rust build scripts; Anchor is absent.
