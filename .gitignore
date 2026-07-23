@@ -1,0 +1,12 @@
+/target/
+**/*.rs.bk
+.anchor/
+.DS_Store
+*.swp
+# Deploy & operator secrets
+target/deploy/*-keypair.json
+**/keys/
+**/handoff-*.json
+!docs/**
+# Agent process notes are non-authoritative (spec §11.1)
+.agents/
