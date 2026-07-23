@@ -1,21 +1,32 @@
-﻿# Bar C status - 2026-07-23 (updated)
+﻿# Bar C status - 2026-07-23 (finish pass)
 
 Branch: `feature/bar-c`
 
+## Workspace
+
+Root members: `programs/supersonic-tx`, `crates/supersonic-tx-core`, `crates/supersonic-tx-sdk`, `crates/supersonic-tx-cli`, `crates/account-cooker`. Router ProgramTest: `programs/supersonic-tx-tests/` (standalone workspace + `Cargo.lock`, excluded from root). `[profile.release] overflow-checks = true`.
+
+## Rust gates (re-run 2026-07-23)
+
+Docker `rust:latest` with `supersonic-cargo-registry`, `supersonic-cargo-git`, `supersonic-target` volumes:
+
+- `cargo fmt --all -- --check` — exit 0
+- `cargo test --workspace --locked` — exit 0 (**50** unit tests)
+- `cargo test --locked --manifest-path programs/supersonic-tx-tests/Cargo.toml` — exit 0 (**6** tests)
+
+**Total: 56** executable tests. Log: `.superpowers/sdd/briefs/bar-c-cargo-test-2026-07-23.log`.
+
 ## Anchor / SBF (Task 20)
 
-**Artifact:** `target/deploy/supersonic_tx.so` (196640 bytes) built via `backpackapp/build:v0.30.1` after lock v3 + transitive pins (blake3 1.5.5, borsh 1.5.5, cc/jobserver, indexmap 2.6.0, unicode-segmentation 1.11.0, zeroize_derive 1.4.2, proc-macro-crate 3.1.0, etc.).
+**Artifact:** `target/deploy/supersonic_tx.so` (**196640** bytes).
 
-**Tooling:** Docker `backpackapp/build:v0.30.1` (Anchor 0.30.1 / Solana 1.18 SBF). Helper: `.superpowers/sdd/briefs/anchor-build-docker.sh`.
+**Tooling:** `backpackapp/build:v0.30.1`, `.superpowers/sdd/briefs/anchor-build-docker.sh`, `.superpowers/sdd/briefs/pin-sbf-lock.sh`.
 
-**Workspace:** Root members slimmed to `programs/supersonic-tx` + `crates/supersonic-tx-core` for SBF-compatible `cargo metadata`. `[profile.release] overflow-checks = true`. Program `idl-build` feature added. Router ProgramTest moved to standalone `programs/supersonic-tx-tests/` (own `[workspace]`, excluded from root).
+**Full `anchor build`:** still **exit 1** on host Cargo 1.79 `cargo metadata` vs crates.io edition2024 manifests; SBF `.so` from earlier compile retained. IDL optional — not produced in this pass.
 
-**Remaining:** Full `anchor build` (IDL/verify tail) still exits 1 on `edition2024` metadata when Anchor runs host Cargo 1.79 against crates.io edge; SBF `.so` step completes. Re-expand CLI/SDK/cooker workspace members only with matching lock policy or separate app lock. No deploy/smoke.
+## Blocked
 
-## Rust gates
+- Devnet deploy + cook/simulate/cast smoke (no operator keys in repo).
+- Green GitHub Actions run not stored in repo.
 
-Prior Linux `cargo test --workspace --locked` (56 tests) used full workspace + lock v4; re-run needed after workspace/lock change (`rust:latest` + `--manifest-path` for moved router tests).
-
-## Windows
-
-Host: `cargo` 1.97; no native Anchor/Solana. Use Docker for Anchor/SBF.
+See `.superpowers/sdd/briefs/bar-c-finish-report-2026-07-23.md`.

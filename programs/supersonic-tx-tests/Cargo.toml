@@ -1,4 +1,4 @@
-﻿[workspace]
+[workspace]
 
 [package]
 name = "supersonic-tx-program-tests"
@@ -9,6 +9,8 @@ publish = false
 [dev-dependencies]
 supersonic-tx = { path = "../supersonic-tx" }
 supersonic-tx-core = { path = "../../crates/supersonic-tx-core" }
+anchor-lang = "0.30.1"
+solana-program = "~1.18"
 solana-program-test = "~1.18"
 solana-sdk = "~1.18"
 tokio = { version = "1.37", features = ["full"] }
