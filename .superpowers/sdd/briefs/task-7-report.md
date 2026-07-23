@@ -19,3 +19,10 @@ Validation:
 - Added relative-only `secret_key_path` validation, rejecting absolute paths, `..` traversal, newlines, JSON byte arrays, and base64-like embedded key material.
 - Added `try_from_json` and regression tests for invalid versions, absolute paths, valid relative paths, and embedded key material.
 - Replaced the weak secret assertion with parsed JSON property checks.
+
+## Important Task 7 follow-up
+
+- Added `HandoffBundle::try_new`, which validates schema version and secret-key paths before construction.
+- Added custom `Serialize` validation so structurally-built invalid bundles fail at every JSON serialization boundary.
+- Added tests covering invalid structural serialization, constructor rejection, and valid schema v1 round-trip behavior.
+- Verification could not run because Cargo is unavailable in the current environment.

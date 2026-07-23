@@ -1,4 +1,4 @@
-use serde::{de::Deserializer, Deserialize, Serialize};
+use serde::{de::Deserializer, ser::Serializer, Deserialize, Serialize};
 use std::path::Path;
 use thiserror::Error;
 
@@ -18,7 +18,7 @@ pub struct CookedAccount {
     pub min_required_lamports: u64,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HandoffBundle {
     pub schema_version: u32,
     pub cluster: String,
@@ -40,6 +40,26 @@ pub enum HandoffValidationError {
 }
 
 impl HandoffBundle {
+    pub fn try_new(
+        schema_version: u32,
+        cluster: String,
+        created_at_unix: i64,
+        sponsor_pubkey: String,
+        accounts: Vec<CookedAccount>,
+        warnings: Vec<String>,
+    ) -> Result<Self, HandoffValidationError> {
+        let handoff = Self {
+            schema_version,
+            cluster,
+            created_at_unix,
+            sponsor_pubkey,
+            accounts,
+            warnings,
+        };
+        handoff.validate()?;
+        Ok(handoff)
+    }
+
     pub fn validate(&self) -> Result<(), HandoffValidationError> {
         if self.schema_version != 1 {
             return Err(HandoffValidationError::UnsupportedSchemaVersion(
@@ -63,6 +83,24 @@ impl HandoffBundle {
 
     pub fn try_from_json(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json)
+    }
+}
+
+impl Serialize for HandoffBundle {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.validate().map_err(serde::ser::Error::custom)?;
+        HandoffBundleFields {
+            schema_version: self.schema_version,
+            cluster: &self.cluster,
+            created_at_unix: self.created_at_unix,
+            sponsor_pubkey: &self.sponsor_pubkey,
+            accounts: &self.accounts,
+            warnings: &self.warnings,
+        }
+        .serialize(serializer)
     }
 }
 
@@ -93,6 +131,16 @@ impl<'de> Deserialize<'de> for HandoffBundle {
         handoff.validate().map_err(serde::de::Error::custom)?;
         Ok(handoff)
     }
+}
+
+#[derive(Serialize)]
+struct HandoffBundleFields<'a> {
+    schema_version: u32,
+    cluster: &'a str,
+    created_at_unix: i64,
+    sponsor_pubkey: &'a str,
+    accounts: &'a [CookedAccount],
+    warnings: &'a [String],
 }
 
 fn validate_secret_key_path(path: &str) -> Result<(), &'static str> {
@@ -177,6 +225,60 @@ mod tests {
         }"#;
 
         assert!(HandoffBundle::try_from_json(json).is_err());
+    }
+
+    #[test]
+    fn invalid_structural_bundle_fails_serialization() {
+        let handoff = HandoffBundle {
+            schema_version: 2,
+            cluster: "devnet".into(),
+            created_at_unix: 1721750400,
+            sponsor_pubkey: "11111111111111111111111111111111".into(),
+            accounts: vec![],
+            warnings: vec![],
+        };
+
+        assert!(serde_json::to_string(&handoff).is_err());
+    }
+
+    #[test]
+    fn try_new_rejects_invalid_version_and_absolute_path() {
+        let version_error = HandoffBundle::try_new(
+            2,
+            "devnet".into(),
+            1721750400,
+            "sponsor".into(),
+            vec![],
+            vec![],
+        )
+        .unwrap_err();
+        assert_eq!(
+            version_error,
+            HandoffValidationError::UnsupportedSchemaVersion(2)
+        );
+
+        let path_error = HandoffBundle::try_new(
+            1,
+            "devnet".into(),
+            1721750400,
+            "sponsor".into(),
+            vec![CookedAccount {
+                role: CookedRole::FeePayer,
+                pubkey: "FeePayer111111111111111111111111111111111".into(),
+                secret_key_path: Some("/tmp/keypair.json".into()),
+                funded_lamports: 50_000_000,
+                min_required_lamports: 10_000_000,
+            }],
+            vec![],
+        )
+        .unwrap_err();
+        assert_eq!(
+            path_error,
+            HandoffValidationError::InvalidSecretKeyPath {
+                account_index: 0,
+                reason: "path must be relative",
+            }
+        );
     }
 
     #[test]
