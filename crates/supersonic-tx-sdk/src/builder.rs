@@ -1,11 +1,12 @@
 use crate::noise::{
-    AnchorRouterNoise, ComputeBudgetNoise, DecoyGenerator, StatisticalTransferNoise, MemoNoise,
+    AnchorRouterNoise, ComputeBudgetNoise, DecoyGenerator, MemoNoise, StatisticalTransferNoise,
 };
 use rand::seq::SliceRandom;
 use solana_sdk::address_lookup_table::AddressLookupTableAccount;
+use solana_sdk::compute_budget;
 use solana_sdk::hash::Hash;
 use solana_sdk::instruction::Instruction;
-use solana_sdk::message::VersionedMessage;
+use solana_sdk::message::{v0, VersionedMessage};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::transaction::VersionedTransaction;
@@ -90,53 +91,140 @@ impl FuzzyBundleBuilder {
         reordered
     }
 
-    /// Build a VersionedTransaction with V0 message and check MTU payload size (1232 bytes max).
+    /// Compile a V0 message and estimate its serialized transaction size.
+    pub fn compile_v0_message(
+        payer: &Pubkey,
+        instructions: &[Instruction],
+        address_lookup_table_accounts: &[AddressLookupTableAccount],
+        recent_blockhash: Hash,
+    ) -> Result<VersionedMessage, SupersonicError> {
+        let message = v0::Message::try_compile(
+            payer,
+            instructions,
+            address_lookup_table_accounts,
+            recent_blockhash,
+        )
+        .map_err(|e| {
+            SupersonicError::InvalidDecoyConfig(format!("v0::Message::try_compile failed: {e}"))
+        })?;
+        Ok(VersionedMessage::V0(message))
+    }
+
+    /// Estimate serialized size using placeholder signatures. This does not sign a transaction.
+    pub fn estimate_tx_size(message: &VersionedMessage) -> Result<usize, SupersonicError> {
+        let num_signatures = message.header().num_required_signatures as usize;
+        let tx = VersionedTransaction {
+            signatures: vec![Signature::default(); num_signatures],
+            message: message.clone(),
+        };
+        let serialized_bytes = bincode::serialize(&tx)
+            .map_err(|e| SupersonicError::SerializationError(e.to_string()))?;
+        Ok(serialized_bytes.len())
+    }
+
+    /// Build an unsigned V0 message, shrinking decoys until its estimated size fits the MTU.
+    pub fn build_versioned_message(
+        &self,
+        recent_blockhash: Hash,
+        address_lookup_table_accounts: &[AddressLookupTableAccount],
+    ) -> Result<VersionedMessage, SupersonicError> {
+        let mut manifest = self.build_manifest()?;
+
+        loop {
+            let instructions = Self::assemble_instructions(&manifest);
+            let message = Self::compile_v0_message(
+                &self.payer,
+                &instructions,
+                address_lookup_table_accounts,
+                recent_blockhash,
+            )?;
+            let size = Self::estimate_tx_size(&message)?;
+            if size <= MAX_TX_PAYLOAD_BYTES {
+                return Ok(message);
+            }
+
+            if !Self::shrink_decoys(&mut manifest) {
+                return Err(SupersonicError::TransactionSizeExceeded(size));
+            }
+        }
+    }
+
+    /// Deprecated compatibility wrapper returning placeholder signatures for estimation only.
+    ///
+    /// The returned transaction is not signed and must not be submitted. Use
+    /// [`Self::build_versioned_message`] and the signing API from Task 12 instead.
+    #[deprecated(
+        note = "returns placeholder signatures for estimation only; use build_versioned_message"
+    )]
     pub fn build_versioned_transaction(
         &self,
         recent_blockhash: Hash,
         address_lookup_table_accounts: &[AddressLookupTableAccount],
     ) -> Result<VersionedTransaction, SupersonicError> {
-        let mut manifest = self.build_manifest()?;
+        let message =
+            self.build_versioned_message(recent_blockhash, address_lookup_table_accounts)?;
+        let num_signatures = message.header().num_required_signatures as usize;
+        Ok(VersionedTransaction {
+            signatures: vec![Signature::default(); num_signatures],
+            message,
+        })
+    }
 
-        loop {
-            let instructions = Self::assemble_instructions(&manifest);
+    fn shrink_decoys(manifest: &mut BundleManifest) -> bool {
+        const MEMO_PROGRAM_ID: &str = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
+        let router_program_id = supersonic_tx_core::program_id();
+        let memo_program_id = MEMO_PROGRAM_ID
+            .parse::<Pubkey>()
+            .expect("valid memo program id");
+        let compute_budget_id = compute_budget::id();
 
-            let message = VersionedMessage::try_compile(
-                &self.payer,
-                &instructions,
-                address_lookup_table_accounts,
-                recent_blockhash,
-            )
-            .map_err(|e| SupersonicError::InvalidDecoyConfig(format!("VersionedMessage compilation failed: {e}")))?;
+        let position = manifest
+            .decoy_instructions
+            .iter()
+            .position(|ix| ix.program_id == solana_sdk::system_program::id())
+            .or_else(|| {
+                manifest
+                    .decoy_instructions
+                    .iter()
+                    .position(|ix| ix.program_id == memo_program_id)
+            })
+            .or_else(|| {
+                let router_count = manifest
+                    .decoy_instructions
+                    .iter()
+                    .filter(|ix| ix.program_id == router_program_id)
+                    .count();
+                (router_count > 1).then(|| {
+                    manifest
+                        .decoy_instructions
+                        .iter()
+                        .position(|ix| ix.program_id == router_program_id)
+                        .expect("router count proves a router decoy exists")
+                })
+            })
+            .or_else(|| {
+                let last_compute_budget = manifest
+                    .decoy_instructions
+                    .iter()
+                    .rposition(|ix| ix.program_id == compute_budget_id);
+                manifest
+                    .decoy_instructions
+                    .iter()
+                    .enumerate()
+                    .find(|(index, ix)| {
+                        ix.program_id != compute_budget_id || Some(*index) != last_compute_budget
+                    })
+                    .map(|(index, _)| index)
+            });
 
-            let num_signatures = message.header().num_required_signatures as usize;
-            let tx = VersionedTransaction {
-                signatures: vec![Signature::default(); num_signatures],
-                message,
-            };
-
-            let serialized_bytes = bincode::serialize(&tx)
-                .map_err(|e| SupersonicError::SerializationError(e.to_string()))?;
-
-            let size = serialized_bytes.len();
-            if size <= MAX_TX_PAYLOAD_BYTES {
-                return Ok(tx);
-            }
-
-            // Exceeded size. Try dropping a decoy instruction to shrink the transaction.
-            if manifest.decoy_instructions.is_empty() {
-                return Err(SupersonicError::TransactionSizeExceeded(size));
-            }
-
-            manifest.decoy_instructions.pop();
-
-            // Re-shuffle execution order
-            let total_count = manifest.target_instructions.len() + manifest.decoy_instructions.len();
-            let mut order: Vec<usize> = (0..total_count).collect();
-            let mut rng = rand::thread_rng();
-            order.shuffle(&mut rng);
-            manifest.execution_order = order;
-        }
+        let Some(position) = position else {
+            return false;
+        };
+        manifest.decoy_instructions.remove(position);
+        let mut order: Vec<usize> = (0..manifest.len()).collect();
+        order.shuffle(&mut rand::thread_rng());
+        manifest.execution_order = order;
+        true
     }
 }
 
@@ -145,21 +233,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_fuzzy_bundle_builder_versioned_transaction_compilation() {
+    fn compiles_v0_message_without_versioned_message_try_compile() {
         let payer = Pubkey::new_unique();
         let target = Pubkey::new_unique();
         let ix = solana_sdk::system_instruction::transfer(&payer, &target, 10_000);
 
-        let builder = FuzzyBundleBuilder::new(payer, ObfuscationLevel::Standard)
-            .add_target_instruction(ix);
-
-        let blockhash = Hash::new_unique();
-        let res = builder.build_versioned_transaction(blockhash, &[]);
-        assert!(res.is_ok());
-
-        let tx = res.unwrap();
-        let serialized = bincode::serialize(&tx).unwrap();
-        assert!(serialized.len() <= supersonic_tx_core::MAX_TX_PAYLOAD_BYTES);
+        let builder =
+            FuzzyBundleBuilder::new(payer, ObfuscationLevel::Light).add_target_instruction(ix);
+        let msg = builder
+            .build_versioned_message(Hash::new_unique(), &[])
+            .expect("v0 compile");
+        match msg {
+            solana_sdk::message::VersionedMessage::V0(_) => {}
+            solana_sdk::message::VersionedMessage::Legacy(_) => panic!("expected V0"),
+        }
+        let size = FuzzyBundleBuilder::estimate_tx_size(&msg).unwrap();
+        assert!(size <= MAX_TX_PAYLOAD_BYTES);
     }
 
     #[test]
@@ -183,7 +272,7 @@ mod tests {
         }
 
         let blockhash = Hash::new_unique();
-        let res = builder.build_versioned_transaction(blockhash, &[]);
+        let res = builder.build_versioned_message(blockhash, &[]);
         assert!(res.is_err());
 
         match res {
