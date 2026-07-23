@@ -1,15 +1,18 @@
-use crate::{CookedAccount, CookedRole, HandoffBundle, HandoffValidationError};
-use serde_json::Error as JsonError;
+use crate::{CookedAccount, CookedRole, CookerError, HandoffBundle};
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
+    message::Message,
     pubkey::Pubkey,
     signature::{read_keypair_file, write_keypair_file, Keypair, Signer},
+    system_instruction,
+    transaction::Transaction,
 };
 use std::{
+    collections::HashSet,
     fs,
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
-use thiserror::Error;
 
 #[derive(Debug, Clone)]
 pub struct CookerConfig {
@@ -24,26 +27,6 @@ pub struct CookerConfig {
 #[derive(Debug)]
 pub struct Cooker {
     sponsor_pubkey: Pubkey,
-}
-
-#[derive(Debug, Error)]
-pub enum CookerError {
-    #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("handoff JSON error: {0}")]
-    Json(#[from] JsonError),
-    #[error("invalid handoff: {0}")]
-    Handoff(#[from] HandoffValidationError),
-    #[error("keypair error: {0}")]
-    Keypair(String),
-    #[error("system clock error: {0}")]
-    Clock(#[from] std::time::SystemTimeError),
-    #[error("configuration must contain at least one sink")]
-    NoSinks,
-    #[error("handoff account {account_index} has no secret key path")]
-    MissingSecretKeyPath { account_index: usize },
-    #[error("handoff account {account_index} keypair does not match pubkey")]
-    KeypairMismatch { account_index: usize },
 }
 
 impl Cooker {
@@ -173,6 +156,146 @@ impl Cooker {
             })
             .collect()
     }
+
+    pub async fn fund_accounts(
+        &self,
+        rpc: &RpcClient,
+        sponsor: &Keypair,
+        handoff: &HandoffBundle,
+        _handoff_dir: &Path,
+    ) -> Result<(), CookerError> {
+        handoff.validate()?;
+        let blockhash = rpc
+            .get_latest_blockhash()
+            .await
+            .map_err(|error| CookerError::Rpc(error.to_string()))?;
+
+        for account in &handoff.accounts {
+            if account.funded_lamports == 0 {
+                continue;
+            }
+            let destination = account
+                .pubkey
+                .parse::<Pubkey>()
+                .map_err(|error| CookerError::Rpc(format!("invalid account pubkey: {error}")))?;
+            let instruction =
+                system_instruction::transfer(&sponsor.pubkey(), &destination, account.funded_lamports);
+            let transaction =
+                Transaction::new_signed_with_payer(&[instruction], Some(&sponsor.pubkey()), &[sponsor], blockhash);
+            rpc.send_and_confirm_transaction(&transaction)
+                .await
+                .map_err(|error| CookerError::Rpc(error.to_string()))?;
+        }
+        Ok(())
+    }
+
+    pub async fn drain(
+        &self,
+        rpc: &RpcClient,
+        handoff: &HandoffBundle,
+        handoff_dir: &Path,
+        destination: &Pubkey,
+    ) -> Result<(), CookerError> {
+        handoff.validate()?;
+        let keypairs = Self::resolve_keypairs(handoff, handoff_dir)?;
+        for (account, keypair) in handoff.accounts.iter().zip(keypairs.iter()) {
+            if account.role == CookedRole::DrainTarget {
+                continue;
+            }
+            let balance = rpc
+                .get_balance(&keypair.pubkey())
+                .await
+                .map_err(|error| CookerError::Rpc(error.to_string()))?;
+            let blockhash = rpc
+                .get_latest_blockhash()
+                .await
+                .map_err(|error| CookerError::Rpc(error.to_string()))?;
+            let fee_message = Message::new(
+                &[system_instruction::transfer(&keypair.pubkey(), destination, 0)],
+                Some(&keypair.pubkey()),
+            );
+            let fee = rpc
+                .get_fee_for_message(&fee_message)
+                .await
+                .map_err(|error| CookerError::Rpc(error.to_string()))?
+                .unwrap_or(0);
+            let amount = balance.saturating_sub(fee);
+            if amount == 0 {
+                continue;
+            }
+            let transaction = Transaction::new_signed_with_payer(
+                &[system_instruction::transfer(&keypair.pubkey(), destination, amount)],
+                Some(&keypair.pubkey()),
+                &[keypair],
+                blockhash,
+            );
+            rpc.send_and_confirm_transaction(&transaction)
+                .await
+                .map_err(|error| CookerError::Rpc(error.to_string()))?;
+        }
+        Ok(())
+    }
+
+    pub fn assert_funded_for_cast(
+        handoff: &HandoffBundle,
+        estimated_fees: u64,
+    ) -> Result<(), CookerError> {
+        let mut shortfalls = Vec::new();
+        for account in &handoff.accounts {
+            let required = account.min_required_lamports
+                .saturating_add(
+                    if account.role == CookedRole::FeePayer {
+                        estimated_fees
+                    } else {
+                        0
+                    },
+                );
+            if account.funded_lamports < required {
+                shortfalls.push(format!(
+                    "{} shortfall {} lamports",
+                    account.pubkey,
+                    required - account.funded_lamports
+                ));
+            }
+        }
+        if shortfalls.is_empty() {
+            Ok(())
+        } else {
+            Err(CookerError::Underfunded(shortfalls.join(", ")))
+        }
+    }
+
+    pub fn detect_reuse_warnings(out_dir: &Path, pubkeys: &[Pubkey]) -> Vec<String> {
+        let mut warnings = Vec::new();
+        let mut seen = HashSet::new();
+        for pubkey in pubkeys {
+            if !seen.insert(*pubkey) {
+                let warning = format!("pubkey reuse detected: {pubkey} appears more than once");
+                eprintln!("{warning}");
+                warnings.push(warning);
+            }
+        }
+
+        let key_dir = out_dir.join("keys");
+        let Ok(entries) = fs::read_dir(&key_dir) else {
+            return warnings;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
+                continue;
+            }
+            let Ok(keypair) = read_keypair_file(path.to_string_lossy().as_ref()) else {
+                continue;
+            };
+            if pubkeys.contains(&keypair.pubkey()) {
+                let warning = format!("pubkey reuse detected in {}", path.display());
+                eprintln!("{warning}");
+                warnings.push(warning);
+            }
+        }
+        warnings
+    }
 }
 
 fn keypair_relative_path(role: &CookedRole, sink_index: &mut usize) -> String {
@@ -241,5 +364,33 @@ mod tests {
                 Some("keys/sink_1.json"),
             ]
         );
+    }
+
+    #[test]
+    fn assert_funded_refuses_shortfall() {
+        let handoff = HandoffBundle {
+            schema_version: 1,
+            cluster: "devnet".into(),
+            created_at_unix: 1,
+            sponsor_pubkey: "x".into(),
+            accounts: vec![CookedAccount {
+                role: CookedRole::FeePayer,
+                pubkey: "p".into(),
+                secret_key_path: Some("keys/fee_payer.json".into()),
+                funded_lamports: 1_000,
+                min_required_lamports: 10_000_000,
+            }],
+            warnings: vec![],
+        };
+        let err = Cooker::assert_funded_for_cast(&handoff, 5_000).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("shortfall") || msg.contains("underfunded"));
+    }
+
+    #[test]
+    fn detect_reuse_warns_on_duplicate_pubkey() {
+        let pk = Pubkey::new_unique();
+        let warnings = Cooker::detect_reuse_warnings(Path::new("/tmp"), &[pk, pk]);
+        assert!(!warnings.is_empty());
     }
 }
