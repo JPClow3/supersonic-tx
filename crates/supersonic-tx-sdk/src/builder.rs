@@ -10,6 +10,7 @@ use solana_sdk::message::{v0, VersionedMessage};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::transaction::VersionedTransaction;
+use std::str::FromStr;
 use supersonic_tx_core::types::{BundleManifest, ObfuscationLevel, SupersonicError};
 use supersonic_tx_core::MAX_TX_PAYLOAD_BYTES;
 
@@ -179,7 +180,7 @@ impl FuzzyBundleBuilder {
         })
     }
 
-    fn shrink_decoys(manifest: &mut BundleManifest) -> bool {
+    pub(crate) fn shrink_decoys(manifest: &mut BundleManifest) -> bool {
         const MEMO_PROGRAM_ID: &str = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
         let router_program_id = supersonic_tx_core::program_id();
         let memo_program_id = MEMO_PROGRAM_ID
@@ -234,6 +235,11 @@ impl FuzzyBundleBuilder {
         order.shuffle(&mut rand::thread_rng());
         manifest.execution_order = order;
         true
+    }
+
+    #[cfg(test)]
+    pub fn shrink_decoys_for_test(manifest: &mut BundleManifest) -> bool {
+        Self::shrink_decoys(manifest)
     }
 }
 
@@ -290,5 +296,33 @@ mod tests {
             }
             other => panic!("Expected TransactionSizeExceeded, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn shrink_drops_statistical_before_memo() {
+        let mut manifest = BundleManifest::new(ObfuscationLevel::Standard);
+        let payer = Pubkey::new_unique();
+        let sink = Pubkey::new_unique();
+        manifest.decoy_instructions = vec![
+            solana_sdk::system_instruction::transfer(&payer, &sink, 1000),
+            Instruction {
+                program_id: Pubkey::from_str(
+                    "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
+                )
+                .unwrap(),
+                accounts: vec![],
+                data: b"x".to_vec(),
+            },
+            solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(200_000),
+        ];
+        assert!(FuzzyBundleBuilder::shrink_decoys_for_test(&mut manifest));
+        assert!(
+            manifest
+                .decoy_instructions
+                .iter()
+                .all(|ix| ix.program_id != solana_sdk::system_program::id()
+                    || ix.data.first() != Some(&2))
+        );
+        assert_eq!(manifest.decoy_instructions.len(), 2);
     }
 }
