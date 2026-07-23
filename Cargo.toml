@@ -34,3 +34,4 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 supersonic-tx-core = { path = "crates/supersonic-tx-core" }
 supersonic-tx-sdk = { path = "crates/supersonic-tx-sdk" }
+account-cooker = { path = "crates/account-cooker" }

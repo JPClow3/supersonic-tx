@@ -1,3 +1,4 @@
+use account_cooker::{CookedAccount, CookedRole};
 use rand::Rng;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::instruction::{AccountMeta, Instruction};
@@ -25,9 +26,8 @@ pub struct StatisticalTransferNoise {
 
 /// An opaque pubkey handoff for an account known to be a system-owned wallet.
 ///
-/// `assume_system_wallet` is an off-chain provenance assertion for cooker
-/// integration. It rejects known program IDs, but cannot prove arbitrary
-/// accounts are non-executable without an RPC account lookup.
+/// Values can only be minted from the configured tip allowlist or a validated
+/// `account-cooker` `DecoySink` handoff.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrustedSystemAccount(Pubkey);
 
@@ -44,15 +44,31 @@ pub enum SinkValidationMode {
     RequireOnChainNonExecutable,
 }
 
-/// Error returned when a sink is a known program address.
+/// Error returned when a sink fails provenance or deny-list validation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InvalidDecoySink {
-    pub destination: Pubkey,
+pub enum InvalidDecoySink {
+    DeniedProgram { destination: Pubkey },
+    NotAllowlisted { destination: Pubkey },
+    InvalidCookedRole,
+    InvalidCookedPubkey { value: String },
 }
 
 impl fmt::Display for InvalidDecoySink {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "decoy sink is a denied program address: {}", self.destination)
+        match self {
+            Self::DeniedProgram { destination } => {
+                write!(f, "decoy sink is a denied program address: {destination}")
+            }
+            Self::NotAllowlisted { destination } => {
+                write!(f, "decoy sink is not in the configured tip allowlist: {destination}")
+            }
+            Self::InvalidCookedRole => {
+                write!(f, "cooked account role must be DecoySink")
+            }
+            Self::InvalidCookedPubkey { value } => {
+                write!(f, "cooked DecoySink has an invalid pubkey: {value}")
+            }
+        }
     }
 }
 
@@ -86,15 +102,9 @@ impl DecoySink {
 }
 
 impl TrustedSystemAccount {
-    /// Assert that `destination` is a normal system wallet from a trusted
-    /// cooker handoff. Known executable/program addresses are always denied.
-    ///
-    /// This does not replace RPC executable/account-owner validation. Callers
-    /// must only use this for keypairs minted as normal ed25519 system
-    /// accounts; use `try_from_tip_allowlist` for configured tip accounts.
-    pub fn assume_system_wallet(destination: Pubkey) -> Result<Self, InvalidDecoySink> {
+    fn from_validated_pubkey(destination: Pubkey) -> Result<Self, InvalidDecoySink> {
         if is_denied_program(&destination) {
-            return Err(InvalidDecoySink { destination });
+            return Err(InvalidDecoySink::DeniedProgram { destination });
         }
         Ok(Self(destination))
     }
@@ -105,9 +115,36 @@ impl TrustedSystemAccount {
         allowlist: &[Pubkey],
     ) -> Result<Self, InvalidDecoySink> {
         if !allowlist.contains(&destination) {
-            return Err(InvalidDecoySink { destination });
+            return Err(InvalidDecoySink::NotAllowlisted { destination });
         }
-        Self::assume_system_wallet(destination)
+        Self::from_validated_pubkey(destination)
+    }
+
+    /// Mint provenance from an account-cooker handoff after checking its role,
+    /// pubkey encoding, and the local program deny-list.
+    pub fn from_cooker_decoy_sink(
+        account: &CookedAccount,
+    ) -> Result<Self, InvalidDecoySink> {
+        match &account.role {
+            CookedRole::DecoySink => {}
+            CookedRole::FeePayer | CookedRole::DrainTarget => {
+                return Err(InvalidDecoySink::InvalidCookedRole);
+            }
+        }
+
+        let destination = Pubkey::from_str(&account.pubkey).map_err(|_| {
+            InvalidDecoySink::InvalidCookedPubkey {
+                value: account.pubkey.clone(),
+            }
+        })?;
+        Self::from_validated_pubkey(destination)
+    }
+}
+
+#[cfg(test)]
+impl TrustedSystemAccount {
+    fn assume_system_wallet_for_test(destination: Pubkey) -> Result<Self, InvalidDecoySink> {
+        Self::from_validated_pubkey(destination)
     }
 }
 
@@ -496,7 +533,7 @@ mod tests {
     #[test]
     fn statistical_noise_uses_injected_sinks() {
         let sink = Pubkey::new_unique();
-        let trusted = TrustedSystemAccount::assume_system_wallet(sink).unwrap();
+        let trusted = TrustedSystemAccount::assume_system_wallet_for_test(sink).unwrap();
         let noise =
             StatisticalTransferNoise::from_sinks(vec![DecoySink::from_trusted_system_account(
                 trusted,
@@ -516,13 +553,14 @@ mod tests {
         ];
 
         for program_id in program_ids {
-            assert!(TrustedSystemAccount::assume_system_wallet(program_id).is_err());
+            assert!(TrustedSystemAccount::assume_system_wallet_for_test(program_id).is_err());
         }
     }
 
     #[test]
     fn trusted_system_sinks_still_generate_transfers() {
-        let trusted = TrustedSystemAccount::assume_system_wallet(Pubkey::new_unique()).unwrap();
+        let trusted =
+            TrustedSystemAccount::assume_system_wallet_for_test(Pubkey::new_unique()).unwrap();
         let sink = DecoySink::from_trusted_system_account(trusted);
         let noise = StatisticalTransferNoise::from_sinks(vec![sink]);
         let payer = Pubkey::new_unique();
@@ -535,8 +573,35 @@ mod tests {
     #[test]
     fn arbitrary_program_like_sink_requires_provenance_and_is_denied() {
         let program = Pubkey::from_str("JUP6LkbZbjS1jKKwapdH67yN5k8u4nKq1X4fD6F9yM5").unwrap();
-        assert!(TrustedSystemAccount::assume_system_wallet(program).is_err());
+        assert!(TrustedSystemAccount::assume_system_wallet_for_test(program).is_err());
         assert!(DecoySink::try_tip_allowlisted(program).is_err());
+    }
+
+    #[test]
+    fn cooker_decoy_sink_is_the_only_cooker_minting_path() {
+        let account = CookedAccount {
+            role: CookedRole::DecoySink,
+            pubkey: Pubkey::new_unique().to_string(),
+            secret_key_path: None,
+            funded_lamports: 50_000,
+            min_required_lamports: 1_000,
+        };
+        let trusted = TrustedSystemAccount::from_cooker_decoy_sink(&account).unwrap();
+        assert_eq!(trusted.0, Pubkey::from_str(&account.pubkey).unwrap());
+    }
+
+    #[test]
+    fn cooker_rejects_fee_payer_and_drain_target_roles() {
+        for role in [CookedRole::FeePayer, CookedRole::DrainTarget] {
+            let account = CookedAccount {
+                role,
+                pubkey: Pubkey::new_unique().to_string(),
+                secret_key_path: None,
+                funded_lamports: 50_000,
+                min_required_lamports: 1_000,
+            };
+            assert!(TrustedSystemAccount::from_cooker_decoy_sink(&account).is_err());
+        }
     }
 
     #[test]

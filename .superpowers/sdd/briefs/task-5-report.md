@@ -40,3 +40,16 @@ Concerns:
 - Added `SinkValidationMode`; on-chain mode fails clearly until an RPC checker is wired.
 - Added regression coverage for program-like destinations and trusted sink transfers.
 - Verification: `git diff --check` passed; Cargo/rustfmt remain unavailable on PATH.
+
+## Critical Task 5 sealing evidence
+
+- Removed the public arbitrary-pubkey `TrustedSystemAccount::assume_system_wallet`
+  constructor; the remaining test-only helper is `#[cfg(test)]` and private.
+- Added `TrustedSystemAccount::from_cooker_decoy_sink(&CookedAccount)`, which
+  accepts only `CookedRole::DecoySink`, parses the handoff pubkey, and applies
+  the existing program deny-list. `FeePayer` and `DrainTarget` are rejected.
+- Tip construction remains allowlist-gated, and `with_tips` can only receive
+  opaque accounts minted through the tip/cooker paths.
+- Added regression tests for valid cooker sinks and rejected cooker roles.
+- Verification: `git diff --check` passed; `cargo` and `rustfmt` are unavailable
+  on PATH in this environment.
