@@ -72,6 +72,33 @@ async fn execute_fuzzy_bundle_rejects_zero_decoys() {
 }
 
 #[tokio::test]
+async fn execute_fuzzy_bundle_rejects_unproven_count() {
+    let (mut banks, payer, blockhash) = program_test().start().await;
+    let instruction = Instruction {
+        program_id: supersonic_tx::id(),
+        accounts: supersonic_tx::accounts::ExecuteFuzzyBundle {
+            authority: payer.pubkey(),
+            system_program: system_program::ID,
+        }
+        .to_account_metas(None),
+        data: supersonic_tx::instruction::ExecuteFuzzyBundle {
+            bundle_seed: 1,
+            decoy_count: 2,
+            instruction_data: Vec::new(),
+        }
+        .data(),
+    };
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&payer.pubkey()),
+        &[&payer],
+        blockhash,
+    );
+    let error = banks.process_transaction(transaction).await.unwrap_err();
+    assert_custom_error(error, INVALID_BUNDLE_MANIFEST);
+}
+
+#[tokio::test]
 async fn execute_fuzzy_bundle_rejects_missing_cpi_target() {
     let (mut banks, payer, blockhash) = program_test().start().await;
     let instruction = Instruction {

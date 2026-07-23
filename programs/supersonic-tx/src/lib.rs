@@ -36,7 +36,9 @@ pub mod supersonic_tx {
         decoy_count: u8,
         instruction_data: Vec<u8>,
     ) -> Result<()> {
-        if decoy_count == 0 {
+        // v1 routes exactly one CPI. Reject caller-asserted counts that cannot
+        // correspond to the concrete execution below.
+        if decoy_count != 1 {
             return err!(SupersonicProgramError::InvalidBundleManifest);
         }
 
@@ -76,7 +78,7 @@ pub mod supersonic_tx {
         emit!(BundleExecuted {
             authority: ctx.accounts.authority.key(),
             bundle_seed,
-            decoy_count,
+            routed_instruction_count: 1,
             timestamp: clock.unix_timestamp,
         });
 
@@ -109,7 +111,7 @@ pub struct DecoyExecuted {
 pub struct BundleExecuted {
     pub authority: Pubkey,
     pub bundle_seed: u64,
-    pub decoy_count: u8,
+    pub routed_instruction_count: u8,
     pub timestamp: i64,
 }
 
@@ -150,11 +152,11 @@ mod tests {
         let bundle_event = BundleExecuted {
             authority,
             bundle_seed: 9999,
-            decoy_count: 1,
+            routed_instruction_count: 1,
             timestamp: 1600000000,
         };
         assert_eq!(bundle_event.bundle_seed, 9999);
-        assert_eq!(bundle_event.decoy_count, 1);
+        assert_eq!(bundle_event.routed_instruction_count, 1);
     }
 
     #[test]
