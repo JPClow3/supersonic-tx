@@ -14,7 +14,7 @@ deployment, CI result, or smoke signature is available.
 | I1 | FIXED | Campaigns prebuild all messages, calculate live fees/System transfers, reserve the real intent, and skip reserve-breaching decoys. | `9e4099a`, `b3fe184` |
 | I2 | FIXED | Planned manifests compile through the shared MTU shrink loop; CLI reports final sizes. | `9e4099a`, `b3fe184` |
 | I3 | FIXED | Key resolution is account-indexed and skips pathless drain targets. | `8c8bbe3`, `b3fe184` |
-| I4 | FIXED | `--via-router` now wraps the target transfer in the router CPI instruction after executable-program verification. | `b3fe184` |
+| I4 | FIXED | `--via-router` now wraps the target transfer in the router CPI instruction after executable-program verification, with a funded-recipient CPI regression test. | `b3fe184` |
 | I5 | FIXED | Router argument/docs/logs now describe exactly one routed instruction, not fictitious decoys. | `b3fe184` |
 | I6 | FIXED | Cook and handoff consumption compare RPC genesis hash with declared cluster. | `b3fe184` |
 | I7 | FIXED | Funding rejects cooker/handoff/signer sponsor mismatch before any RPC call. | `8c8bbe3` |

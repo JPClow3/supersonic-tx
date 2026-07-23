@@ -2,6 +2,7 @@ use anchor_lang::{InstructionData, ToAccountMetas};
 use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, pubkey::Pubkey};
 use solana_program_test::{processor, BanksClientError, ProgramTest};
 use solana_sdk::{
+    account::Account,
     instruction::{AccountMeta, Instruction},
     signature::Signer,
     system_program,
@@ -172,8 +173,19 @@ async fn execute_fuzzy_bundle_rejects_non_executable_cpi_target() {
 
 #[tokio::test]
 async fn execute_fuzzy_bundle_system_transfer_cpi() {
-    let (mut banks, payer, blockhash) = program_test().start().await;
-    let recipient = solana_sdk::pubkey::Pubkey::new_unique();
+    let recipient = Pubkey::new_unique();
+    let mut test = program_test();
+    test.add_account(
+        recipient,
+        Account {
+            lamports: 1_000_000,
+            data: Vec::new(),
+            owner: system_program::ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    let (mut banks, payer, blockhash) = test.start().await;
     let transfer = solana_sdk::system_instruction::transfer(&payer.pubkey(), &recipient, 1);
     let mut accounts = supersonic_tx::accounts::ExecuteFuzzyBundle {
         authority: payer.pubkey(),
@@ -202,7 +214,7 @@ async fn execute_fuzzy_bundle_system_transfer_cpi() {
         blockhash,
     );
     banks.process_transaction(transaction).await.unwrap();
-    assert_eq!(banks.get_balance(recipient).await.unwrap(), 1);
+    assert_eq!(banks.get_balance(recipient).await.unwrap(), 1_000_001);
 }
 
 fn assert_custom_error(error: BanksClientError, expected_code: u32) {
