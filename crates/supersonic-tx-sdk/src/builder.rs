@@ -11,9 +11,15 @@ use solana_sdk::message::{v0, VersionedMessage};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::transaction::VersionedTransaction;
-use std::str::FromStr;
 use supersonic_tx_core::types::{BundleManifest, ObfuscationLevel, SupersonicError};
 use supersonic_tx_core::MAX_TX_PAYLOAD_BYTES;
+
+#[derive(Debug, Clone)]
+pub struct BuiltBundle {
+    pub manifest: BundleManifest,
+    pub message: VersionedMessage,
+    pub serialized_size: usize,
+}
 
 /// Builder for constructing fuzzy transaction bundles.
 pub struct FuzzyBundleBuilder {
@@ -21,7 +27,7 @@ pub struct FuzzyBundleBuilder {
     level: ObfuscationLevel,
     target_instructions: Vec<Instruction>,
     generators: Vec<Box<dyn DecoyGenerator>>,
-    transfer_decoys_expected: bool,
+    transfer_noise_disabled: bool,
     transfer_sink_count: usize,
     sink_validation_mode: SinkValidationMode,
 }
@@ -34,10 +40,9 @@ impl FuzzyBundleBuilder {
             target_instructions: Vec::new(),
             generators: vec![
                 Box::new(ComputeBudgetNoise::default()),
-                Box::new(AnchorRouterNoise::default()),
                 Box::new(MemoNoise::default()),
             ],
-            transfer_decoys_expected: false,
+            transfer_noise_disabled: false,
             transfer_sink_count: 0,
             sink_validation_mode: SinkValidationMode::DenyListOnly,
         }
@@ -45,7 +50,6 @@ impl FuzzyBundleBuilder {
 
     /// Add provenance-gated fail-soft SOL transfer sinks.
     pub fn with_sinks(mut self, sinks: Vec<DecoySink>) -> Result<Self, SupersonicError> {
-        self.transfer_decoys_expected = true;
         if sinks.is_empty() {
             return Err(SupersonicError::InvalidDecoyConfig(
                 "transfer decoys require at least one validated sink".to_string(),
@@ -55,6 +59,22 @@ impl FuzzyBundleBuilder {
         self.generators
             .push(Box::new(StatisticalTransferNoise::from_sinks(sinks)));
         Ok(self)
+    }
+
+    /// Explicitly select a profile without statistical transfer noise.
+    ///
+    /// This is intentionally opt-in because every documented security level
+    /// otherwise promises transfer decoys.
+    pub fn without_transfer_noise(mut self) -> Self {
+        self.transfer_noise_disabled = true;
+        self
+    }
+
+    /// Opt into router noops only after the caller has verified deployment.
+    pub fn with_router_noise(mut self, program_id: Pubkey) -> Self {
+        self.generators
+            .push(Box::new(AnchorRouterNoise::new(program_id)));
+        self
     }
 
     /// Select sink validation policy. On-chain mode requires a checker that
@@ -76,12 +96,6 @@ impl FuzzyBundleBuilder {
         self
     }
 
-    /// Register a custom decoy generator strategy.
-    pub fn with_decoy_generator(mut self, generator: impl DecoyGenerator + 'static) -> Self {
-        self.generators.push(Box::new(generator));
-        self
-    }
-
     /// Build the bundle manifest with interleaved target and decoy instructions.
     pub fn build_manifest(&self) -> Result<BundleManifest, SupersonicError> {
         match self.sink_validation_mode {
@@ -92,9 +106,9 @@ impl FuzzyBundleBuilder {
                 ));
             }
         }
-        if self.transfer_decoys_expected && self.transfer_sink_count == 0 {
+        if !self.transfer_noise_disabled && self.transfer_sink_count == 0 {
             return Err(SupersonicError::InvalidDecoyConfig(
-                "transfer decoys expected but no valid sinks remain".to_string(),
+                "this level requires validated transfer sinks; call with_sinks or explicitly select without_transfer_noise".to_string(),
             ));
         }
         let mut manifest = BundleManifest::new(self.level);
@@ -163,12 +177,12 @@ impl FuzzyBundleBuilder {
         Ok(serialized_bytes.len())
     }
 
-    /// Build an unsigned V0 message, shrinking decoys until its estimated size fits the MTU.
-    pub fn build_versioned_message(
+    /// Build one final manifest and compile that exact manifest into a V0 message.
+    pub fn build_bundle(
         &self,
         recent_blockhash: Hash,
         address_lookup_table_accounts: &[AddressLookupTableAccount],
-    ) -> Result<VersionedMessage, SupersonicError> {
+    ) -> Result<BuiltBundle, SupersonicError> {
         let mut manifest = self.build_manifest()?;
 
         loop {
@@ -181,7 +195,11 @@ impl FuzzyBundleBuilder {
             )?;
             let size = Self::estimate_tx_size(&message)?;
             if size <= MAX_TX_PAYLOAD_BYTES {
-                return Ok(message);
+                return Ok(BuiltBundle {
+                    manifest,
+                    message,
+                    serialized_size: size,
+                });
             }
 
             if !Self::shrink_decoys(&mut manifest) {
@@ -190,33 +208,21 @@ impl FuzzyBundleBuilder {
         }
     }
 
-    /// Deprecated compatibility wrapper returning placeholder signatures for estimation only.
-    ///
-    /// The returned transaction is not signed and must not be submitted. Use
-    /// [`Self::build_versioned_message`] and the signing API from Task 12 instead.
-    #[deprecated(
-        note = "returns placeholder signatures for estimation only; use build_versioned_message"
-    )]
-    pub fn build_versioned_transaction(
+    /// Build an unsigned V0 message, shrinking decoys until its estimated size fits the MTU.
+    pub fn build_versioned_message(
         &self,
         recent_blockhash: Hash,
         address_lookup_table_accounts: &[AddressLookupTableAccount],
-    ) -> Result<VersionedTransaction, SupersonicError> {
-        let message =
-            self.build_versioned_message(recent_blockhash, address_lookup_table_accounts)?;
-        let num_signatures = message.header().num_required_signatures as usize;
-        Ok(VersionedTransaction {
-            signatures: vec![Signature::default(); num_signatures],
-            message,
-        })
+    ) -> Result<VersionedMessage, SupersonicError> {
+        Ok(self
+            .build_bundle(recent_blockhash, address_lookup_table_accounts)?
+            .message)
     }
 
     pub(crate) fn shrink_decoys(manifest: &mut BundleManifest) -> bool {
         const MEMO_PROGRAM_ID: &str = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
         let router_program_id = supersonic_tx_core::program_id();
-        let memo_program_id = MEMO_PROGRAM_ID
-            .parse::<Pubkey>()
-            .expect("valid memo program id");
+        let memo_program_id = MEMO_PROGRAM_ID.parse::<Pubkey>().ok();
         let compute_budget_id = compute_budget::id();
 
         let position = manifest
@@ -227,7 +233,7 @@ impl FuzzyBundleBuilder {
                 manifest
                     .decoy_instructions
                     .iter()
-                    .position(|ix| ix.program_id == memo_program_id)
+                    .position(|ix| Some(ix.program_id) == memo_program_id)
             })
             .or_else(|| {
                 let router_count = manifest
@@ -244,16 +250,21 @@ impl FuzzyBundleBuilder {
                 })
             })
             .or_else(|| {
-                let last_compute_budget = manifest
-                    .decoy_instructions
-                    .iter()
-                    .rposition(|ix| ix.program_id == compute_budget_id);
+                // Price-only padding is lower priority than the CU limit.
+                manifest.decoy_instructions.iter().position(|ix| {
+                    ix.program_id == compute_budget_id && ix.data.first() == Some(&3)
+                })
+            })
+            .or_else(|| {
+                let protected_limit = manifest.decoy_instructions.iter().position(|ix| {
+                    ix.program_id == compute_budget_id && ix.data.first() == Some(&2)
+                });
                 manifest
                     .decoy_instructions
                     .iter()
                     .enumerate()
                     .find(|(index, ix)| {
-                        ix.program_id != compute_budget_id || Some(*index) != last_compute_budget
+                        ix.program_id != compute_budget_id || Some(*index) != protected_limit
                     })
                     .map(|(index, _)| index)
             });
@@ -277,6 +288,7 @@ impl FuzzyBundleBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn compiles_v0_message_without_versioned_message_try_compile() {
@@ -284,8 +296,9 @@ mod tests {
         let target = Pubkey::new_unique();
         let ix = solana_sdk::system_instruction::transfer(&payer, &target, 10_000);
 
-        let builder =
-            FuzzyBundleBuilder::new(payer, ObfuscationLevel::Light).add_target_instruction(ix);
+        let builder = FuzzyBundleBuilder::new(payer, ObfuscationLevel::Light)
+            .without_transfer_noise()
+            .add_target_instruction(ix);
         let msg = builder
             .build_versioned_message(Hash::new_unique(), &[])
             .expect("v0 compile");
@@ -300,7 +313,8 @@ mod tests {
     #[test]
     fn test_transaction_mtu_size_verification() {
         let payer = Pubkey::new_unique();
-        let mut builder = FuzzyBundleBuilder::new(payer, ObfuscationLevel::Paranoid);
+        let mut builder =
+            FuzzyBundleBuilder::new(payer, ObfuscationLevel::Paranoid).without_transfer_noise();
 
         // Force payload size beyond 1232 bytes MTU limit by adding many instructions with large payloads
         for _ in 0..40 {
@@ -337,23 +351,42 @@ mod tests {
         manifest.decoy_instructions = vec![
             solana_sdk::system_instruction::transfer(&payer, &sink, 1000),
             Instruction {
-                program_id: Pubkey::from_str(
-                    "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
-                )
-                .unwrap(),
+                program_id: Pubkey::from_str("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr")
+                    .unwrap(),
                 accounts: vec![],
                 data: b"x".to_vec(),
             },
             solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(200_000),
         ];
         assert!(FuzzyBundleBuilder::shrink_decoys_for_test(&mut manifest));
-        assert!(
-            manifest
-                .decoy_instructions
-                .iter()
-                .all(|ix| ix.program_id != solana_sdk::system_program::id()
-                    || ix.data.first() != Some(&2))
-        );
+        assert!(manifest
+            .decoy_instructions
+            .iter()
+            .all(|ix| ix.program_id != solana_sdk::system_program::id()
+                || ix.data.first() != Some(&2)));
         assert_eq!(manifest.decoy_instructions.len(), 2);
+    }
+
+    #[test]
+    fn default_builder_requires_explicit_transfer_policy() {
+        let builder = FuzzyBundleBuilder::new(Pubkey::new_unique(), ObfuscationLevel::Standard);
+        let error = builder.build_manifest().unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("requires validated transfer sinks"));
+    }
+
+    #[test]
+    fn shrink_retains_compute_unit_limit_before_price() {
+        let mut manifest = BundleManifest::new(ObfuscationLevel::Standard);
+        manifest.decoy_instructions = vec![
+            solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(10),
+            solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(200_000),
+        ];
+
+        assert!(FuzzyBundleBuilder::shrink_decoys_for_test(&mut manifest));
+        assert_eq!(manifest.decoy_instructions.len(), 1);
+        assert_eq!(manifest.decoy_instructions[0].data.first(), Some(&2));
+        assert!(!FuzzyBundleBuilder::shrink_decoys_for_test(&mut manifest));
     }
 }

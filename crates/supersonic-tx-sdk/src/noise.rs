@@ -1,5 +1,7 @@
 use account_cooker::{CookedAccount, CookedRole};
 use rand::Rng;
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::account::Account;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::instruction::{AccountMeta, Instruction};
 use solana_sdk::pubkey::Pubkey;
@@ -11,11 +13,7 @@ use supersonic_tx_core::types::ObfuscationLevel;
 /// Trait defining noise generation strategies for masking intent.
 pub trait DecoyGenerator: Send + Sync {
     /// Generate a vector of decoy instructions based on the requested obfuscation level.
-    fn generate_decoys(
-        &self,
-        payer: &Pubkey,
-        level: ObfuscationLevel,
-    ) -> Vec<Instruction>;
+    fn generate_decoys(&self, payer: &Pubkey, level: ObfuscationLevel) -> Vec<Instruction>;
 }
 
 /// Generates statistical micro-transfers following realistic log-normal / Benford distribution.
@@ -51,6 +49,8 @@ pub enum InvalidDecoySink {
     NotAllowlisted { destination: Pubkey },
     InvalidCookedRole,
     InvalidCookedPubkey { value: String },
+    RpcValidation { destination: Pubkey, reason: String },
+    NotSystemWallet { destination: Pubkey },
 }
 
 impl fmt::Display for InvalidDecoySink {
@@ -60,7 +60,10 @@ impl fmt::Display for InvalidDecoySink {
                 write!(f, "decoy sink is a denied program address: {destination}")
             }
             Self::NotAllowlisted { destination } => {
-                write!(f, "decoy sink is not in the configured tip allowlist: {destination}")
+                write!(
+                    f,
+                    "decoy sink is not in the configured tip allowlist: {destination}"
+                )
             }
             Self::InvalidCookedRole => {
                 write!(f, "cooked account role must be DecoySink")
@@ -68,6 +71,14 @@ impl fmt::Display for InvalidDecoySink {
             Self::InvalidCookedPubkey { value } => {
                 write!(f, "cooked DecoySink has an invalid pubkey: {value}")
             }
+            Self::RpcValidation {
+                destination,
+                reason,
+            } => write!(f, "could not validate decoy sink {destination}: {reason}"),
+            Self::NotSystemWallet { destination } => write!(
+                f,
+                "decoy sink {destination} is executable or not owned by the system program"
+            ),
         }
     }
 }
@@ -97,7 +108,31 @@ impl DecoySink {
     }
 
     pub fn pubkey(self) -> Pubkey {
-        self.0.0
+        self.0 .0
+    }
+
+    /// Fetch and prove that a destination is a non-executable, system-owned account.
+    pub async fn validate_on_chain(
+        rpc: &RpcClient,
+        destination: Pubkey,
+    ) -> Result<Self, InvalidDecoySink> {
+        let account = rpc.get_account(&destination).await.map_err(|error| {
+            InvalidDecoySink::RpcValidation {
+                destination,
+                reason: error.to_string(),
+            }
+        })?;
+        Self::from_rpc_account(destination, &account)
+    }
+
+    pub fn from_rpc_account(
+        destination: Pubkey,
+        account: &Account,
+    ) -> Result<Self, InvalidDecoySink> {
+        if account.executable || account.owner != solana_sdk::system_program::ID {
+            return Err(InvalidDecoySink::NotSystemWallet { destination });
+        }
+        TrustedSystemAccount::from_validated_pubkey(destination).map(Self)
     }
 }
 
@@ -122,9 +157,7 @@ impl TrustedSystemAccount {
 
     /// Mint provenance from an account-cooker handoff after checking its role,
     /// pubkey encoding, and the local program deny-list.
-    pub fn from_cooker_decoy_sink(
-        account: &CookedAccount,
-    ) -> Result<Self, InvalidDecoySink> {
+    pub fn from_cooker_decoy_sink(account: &CookedAccount) -> Result<Self, InvalidDecoySink> {
         match &account.role {
             CookedRole::DecoySink => {}
             CookedRole::FeePayer | CookedRole::DrainTarget => {
@@ -184,10 +217,7 @@ impl StatisticalTransferNoise {
         }
     }
 
-    pub fn with_tips(
-        mut self,
-        tips: &[TrustedSystemAccount],
-    ) -> Result<Self, InvalidDecoySink> {
+    pub fn with_tips(mut self, tips: &[TrustedSystemAccount]) -> Result<Self, InvalidDecoySink> {
         for tip in tips {
             let sink = DecoySink::from_trusted_system_account(*tip);
             self.decoy_destinations.push(sink.pubkey());
@@ -196,7 +226,11 @@ impl StatisticalTransferNoise {
     }
 
     /// Sample a lamport transfer amount strictly adhering to Benford's Law distribution within [min_lamports, max_lamports].
-    pub fn sample_benford_lamports<R: Rng>(rng: &mut R, min_lamports: u64, max_lamports: u64) -> u64 {
+    pub fn sample_benford_lamports<R: Rng>(
+        rng: &mut R,
+        min_lamports: u64,
+        max_lamports: u64,
+    ) -> u64 {
         loop {
             // 1. Sample leading digit d in [1, 9] via Inverse Transform Sampling: P(d) = log10(1 + 1/d)
             let u: f64 = rng.gen();
@@ -219,11 +253,7 @@ impl StatisticalTransferNoise {
 }
 
 impl DecoyGenerator for StatisticalTransferNoise {
-    fn generate_decoys(
-        &self,
-        payer: &Pubkey,
-        level: ObfuscationLevel,
-    ) -> Vec<Instruction> {
+    fn generate_decoys(&self, payer: &Pubkey, level: ObfuscationLevel) -> Vec<Instruction> {
         let mut rng = rand::thread_rng();
         let count = match level {
             ObfuscationLevel::Light => 1,
@@ -276,25 +306,26 @@ impl ComputeBudgetNoise {
 }
 
 impl DecoyGenerator for ComputeBudgetNoise {
-    fn generate_decoys(
-        &self,
-        _payer: &Pubkey,
-        level: ObfuscationLevel,
-    ) -> Vec<Instruction> {
+    fn generate_decoys(&self, _payer: &Pubkey, level: ObfuscationLevel) -> Vec<Instruction> {
         let mut rng = rand::thread_rng();
         let mut instructions = Vec::new();
 
         // 1. Compute Unit Limit Normalization + Jitter (5% - 15%)
-        let base_limit = self.custom_limit_base.unwrap_or(match level {
-            ObfuscationLevel::Light => 200_000,
-            ObfuscationLevel::Standard => 400_000,
-            ObfuscationLevel::Paranoid => 800_000,
-        });
+        let base_limit = self
+            .custom_limit_base
+            .unwrap_or(match level {
+                ObfuscationLevel::Light => 200_000,
+                ObfuscationLevel::Standard => 400_000,
+                ObfuscationLevel::Paranoid => 800_000,
+            })
+            .min(1_400_000);
 
         let jitter_percent = rng.gen_range(5..=15);
-        let jitter = (base_limit * jitter_percent) / 100;
-        let final_limit = (base_limit + jitter).min(1_400_000);
-        instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(final_limit));
+        let jitter = base_limit.saturating_mul(jitter_percent) / 100;
+        let final_limit = base_limit.saturating_add(jitter).min(1_400_000);
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
+            final_limit,
+        ));
 
         // 2. Priority Fee Randomization (SetComputeUnitPrice)
         if self.enable_price_noise {
@@ -303,7 +334,9 @@ impl DecoyGenerator for ComputeBudgetNoise {
                 ObfuscationLevel::Standard => rng.gen_range(5_000..25_000),
                 ObfuscationLevel::Paranoid => rng.gen_range(25_000..100_000),
             };
-            instructions.push(ComputeBudgetInstruction::set_compute_unit_price(micro_lamports));
+            instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+                micro_lamports,
+            ));
         }
 
         instructions
@@ -319,8 +352,7 @@ pub struct AnchorRouterNoise {
 impl Default for AnchorRouterNoise {
     fn default() -> Self {
         Self {
-            program_id: Pubkey::from_str(supersonic_tx_core::PROGRAM_ID_STR)
-                .unwrap_or_else(|_| Pubkey::new_unique()),
+            program_id: supersonic_tx_core::program_id(),
         }
     }
 }
@@ -332,11 +364,7 @@ impl AnchorRouterNoise {
 }
 
 impl DecoyGenerator for AnchorRouterNoise {
-    fn generate_decoys(
-        &self,
-        payer: &Pubkey,
-        level: ObfuscationLevel,
-    ) -> Vec<Instruction> {
+    fn generate_decoys(&self, payer: &Pubkey, level: ObfuscationLevel) -> Vec<Instruction> {
         let mut rng = rand::thread_rng();
         let count = match level {
             ObfuscationLevel::Light => 1,
@@ -388,11 +416,7 @@ impl Default for MemoNoise {
 }
 
 impl DecoyGenerator for MemoNoise {
-    fn generate_decoys(
-        &self,
-        payer: &Pubkey,
-        level: ObfuscationLevel,
-    ) -> Vec<Instruction> {
+    fn generate_decoys(&self, payer: &Pubkey, level: ObfuscationLevel) -> Vec<Instruction> {
         let mut rng = rand::thread_rng();
         let count = match level {
             ObfuscationLevel::Light => 0, // Light might not need memos
@@ -432,7 +456,8 @@ mod tests {
         let mut counts = [0u32; 10];
 
         for _ in 0..n {
-            let lamports = StatisticalTransferNoise::sample_benford_lamports(&mut rng, 1_000, 50_000);
+            let lamports =
+                StatisticalTransferNoise::sample_benford_lamports(&mut rng, 1_000, 50_000);
             assert!(
                 lamports >= 1_000 && lamports <= 50_000,
                 "Lamports {} out of bounds [1000, 50000]",
@@ -524,7 +549,10 @@ mod tests {
         let noise = StatisticalTransferNoise::default_tip_allowlist();
         for d in &noise.decoy_destinations {
             let s = d.to_string();
-            assert!(!s.starts_with("JUP6"), "forbidden fake Jupiter destination: {s}");
+            assert!(
+                !s.starts_with("JUP6"),
+                "forbidden fake Jupiter destination: {s}"
+            );
             // destinations must be non-executable wallets; we cannot check executable off-chain
             // without RPC — enforce allowlist membership instead in builder tests.
         }
@@ -608,6 +636,11 @@ mod tests {
     fn router_noop_counts_match_spec_standard() {
         let payer = Pubkey::new_unique();
         let noise = AnchorRouterNoise::default();
-        assert_eq!(noise.generate_decoys(&payer, ObfuscationLevel::Standard).len(), 1);
+        assert_eq!(
+            noise
+                .generate_decoys(&payer, ObfuscationLevel::Standard)
+                .len(),
+            1
+        );
     }
 }

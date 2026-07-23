@@ -30,18 +30,9 @@ pub enum DecoyKind {
         amount_lamports: u64,
     },
     /// Dynamic Compute Budget Unit padding instruction to equalize TX profiles.
-    ComputeBudgetPadding {
-        units: u32,
-    },
+    ComputeBudgetPadding { units: u32 },
     /// Benign Memo program instruction matching typical dApp interaction signatures.
-    ProtocolMemo {
-        memo: String,
-    },
-    /// Custom instruction payload targeting a decoy protocol program.
-    Custom {
-        program_id: Pubkey,
-        data: Vec<u8>,
-    },
+    ProtocolMemo { memo: String },
 }
 
 /// Manifest encapsulating real instructions alongside interleaved decoys.
@@ -91,4 +82,25 @@ pub enum SupersonicError {
 
     #[error("Serialization failed: {0}")]
     SerializationError(String),
+
+    #[error("Address lookup table fetch failed: {0}")]
+    AltFetchFailed(String),
+
+    #[error("Required transaction signature is missing: {0}")]
+    MissingSignature(String),
+
+    #[error("Transaction simulation failed: {0}")]
+    SimulationFailed(String),
+
+    #[error("RPC request failed: {0}")]
+    RpcError(String),
+
+    #[error("Fee payer is underfunded: balance {balance}, required at least {required}")]
+    Underfunded { balance: u64, required: u64 },
+
+    #[error("Router program is unavailable or not executable: {0}")]
+    RouterUnavailable(String),
+
+    #[error("Invalid campaign plan: {0}")]
+    InvalidCampaign(String),
 }
