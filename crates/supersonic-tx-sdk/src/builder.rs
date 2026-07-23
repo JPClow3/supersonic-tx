@@ -28,12 +28,20 @@ impl FuzzyBundleBuilder {
             level,
             target_instructions: Vec::new(),
             generators: vec![
-                Box::new(StatisticalTransferNoise::default_mainnet_destinations()),
                 Box::new(ComputeBudgetNoise::default()),
                 Box::new(AnchorRouterNoise::default()),
                 Box::new(MemoNoise::default()),
             ],
         }
+    }
+
+    /// Add fail-soft SOL transfer sinks for statistical decoys.
+    pub fn with_sinks(mut self, sinks: Vec<Pubkey>) -> Self {
+        if !sinks.is_empty() {
+            self.generators
+                .push(Box::new(StatisticalTransferNoise::from_sinks(sinks)));
+        }
+        self
     }
 
     /// Add a real target instruction to be hidden inside the fuzzy bundle.

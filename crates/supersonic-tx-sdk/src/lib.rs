@@ -3,5 +3,5 @@ pub mod noise;
 
 pub use builder::FuzzyBundleBuilder;
 pub use noise::{
-    AnchorRouterNoise, ComputeBudgetNoise, DecoyGenerator, StatisticalTransferNoise,
+    AnchorRouterNoise, ComputeBudgetNoise, DecoyGenerator, MemoNoise, StatisticalTransferNoise,
 };

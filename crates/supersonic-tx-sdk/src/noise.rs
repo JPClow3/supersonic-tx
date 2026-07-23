@@ -27,15 +27,20 @@ impl StatisticalTransferNoise {
         Self { decoy_destinations }
     }
 
-    pub fn default_mainnet_destinations() -> Self {
-        // Example popular public accounts on Solana
-        // Jupiter Aggregator v6, Raydium AMM V4, Orca Whirlpools
-        let destinations = vec![
-            Pubkey::from_str("JUP6LkbZbjS1jKKwapdH67yN5k8u4nKq1X4fD6F9yM5").unwrap(), // Jupiter
-            Pubkey::from_str("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8").unwrap(), // Raydium
-            Pubkey::from_str("whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc").unwrap(),  // Orca
-        ];
-        Self::new(destinations)
+    pub fn from_sinks(decoy_destinations: Vec<Pubkey>) -> Self {
+        Self { decoy_destinations }
+    }
+
+    /// Public tip / fee sink allowlist for fail-soft SOL transfers.
+    /// Operators should prefer cooked DecoySinks from account-cooker.
+    /// v1 ships an empty default; CLI/SDK inject sinks from handoff or `--tip`.
+    pub fn default_tip_allowlist() -> Self {
+        Self::from_sinks(Vec::new())
+    }
+
+    pub fn with_tips(mut self, tips: impl IntoIterator<Item = Pubkey>) -> Self {
+        self.decoy_destinations.extend(tips);
+        self
     }
 
     /// Sample a lamport transfer amount strictly adhering to Benford's Law distribution within [min_lamports, max_lamports].
@@ -75,11 +80,15 @@ impl DecoyGenerator for StatisticalTransferNoise {
         };
 
         let mut instructions = Vec::new();
+        if self.decoy_destinations.is_empty() {
+            return instructions;
+        }
+
         for _ in 0..count {
             let destination = if !self.decoy_destinations.is_empty() {
                 self.decoy_destinations[rng.gen_range(0..self.decoy_destinations.len())]
             } else {
-                Pubkey::new_unique()
+                unreachable!("empty sinks returned above");
             };
             let lamports = Self::sample_benford_lamports(&mut rng, 1_000, 50_000);
             instructions.push(system_instruction::transfer(payer, &destination, lamports));
@@ -179,8 +188,8 @@ impl DecoyGenerator for AnchorRouterNoise {
         let mut rng = rand::thread_rng();
         let count = match level {
             ObfuscationLevel::Light => 1,
-            ObfuscationLevel::Standard => 2,
-            ObfuscationLevel::Paranoid => 4,
+            ObfuscationLevel::Standard => 1,
+            ObfuscationLevel::Paranoid => 2,
         };
 
         let mut instructions = Vec::new();
@@ -343,7 +352,7 @@ mod tests {
         assert_eq!(noise.program_id, expected_program_id);
 
         let decoys = noise.generate_decoys(&payer, ObfuscationLevel::Standard);
-        assert_eq!(decoys.len(), 2);
+        assert_eq!(decoys.len(), 1);
 
         for ix in decoys {
             assert_eq!(ix.program_id, expected_program_id);
@@ -356,5 +365,33 @@ mod tests {
                 &solana_sdk::hash::hash(b"global:noop_decoy").to_bytes()[..8];
             assert_eq!(&ix.data[..8], expected_discriminator);
         }
+    }
+
+    #[test]
+    fn statistical_noise_rejects_fake_jupiter_default() {
+        let noise = StatisticalTransferNoise::default_tip_allowlist();
+        for d in &noise.decoy_destinations {
+            let s = d.to_string();
+            assert!(!s.starts_with("JUP6"), "forbidden fake Jupiter destination: {s}");
+            // destinations must be non-executable wallets; we cannot check executable off-chain
+            // without RPC — enforce allowlist membership instead in builder tests.
+        }
+    }
+
+    #[test]
+    fn statistical_noise_uses_injected_sinks() {
+        let sink = Pubkey::new_unique();
+        let noise = StatisticalTransferNoise::from_sinks(vec![sink]);
+        let payer = Pubkey::new_unique();
+        let decoys = noise.generate_decoys(&payer, ObfuscationLevel::Light);
+        assert_eq!(decoys.len(), 1);
+        assert_eq!(decoys[0].accounts[1].pubkey, sink);
+    }
+
+    #[test]
+    fn router_noop_counts_match_spec_standard() {
+        let payer = Pubkey::new_unique();
+        let noise = AnchorRouterNoise::default();
+        assert_eq!(noise.generate_decoys(&payer, ObfuscationLevel::Standard).len(), 1);
     }
 }
