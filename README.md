@@ -105,7 +105,7 @@ there is no CLI flag and no cooker mint/ATA funding path yet (see **Roadmap**).
 | Cluster | Program ID | Recorded (UTC) | Notes |
 | --- | --- | --- | --- |
 | localnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-24 | Smoke **PASS** — Docker `supersonic-localnet` + `cook` → `cast --via-router --send`. Commit `971fb96`. Genesis `Dwas9mCe5QyEPZpJNXewNjhtYpHbcRK2vdN8zjUPfypi` (ephemeral per `--reset`). |
-| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-24 | Deploy + cook/cast/campaign **PASS** on tip `852856d` (working tree needs full 44-char genesis constants). Explorer: [program](https://explorer.solana.com/address/GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9?cluster=devnet). Evidence: [docs/results/RUNS.md](docs/results/RUNS.md). |
+| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-24 | Deploy + cook/cast/campaign **PASS** on commit `aa80431`. Explorer: [program](https://explorer.solana.com/address/GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9?cluster=devnet). Evidence: [docs/results/RUNS.md](docs/results/RUNS.md). |
 
 ### Localnet signatures (judge copy-paste)
 

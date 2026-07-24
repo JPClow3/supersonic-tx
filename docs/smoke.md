@@ -1,7 +1,7 @@
 # Smoke test — `supersonic_tx`
 
 Operator checklist after deploy. **Localnet PASS** refreshed 2026-07-24 (commit `971fb96`).
-**Devnet PASS** 2026-07-24 (tip `852856d`) — deploy + cook/cast/campaign; see [results/RUNS.md](results/RUNS.md).
+**Devnet PASS** 2026-07-24 (commit `aa80431`, includes the genesis-hash fix below) — deploy + cook/cast/campaign; see [results/RUNS.md](results/RUNS.md).
 
 Prerequisites:
 
@@ -73,7 +73,8 @@ Prior reference run (2026-07-23, same program ID / cast shape): see
 
 ## Devnet
 
-**PASS** 2026-07-24 on tip `852856d` (deploy + cook/cast/campaign). Ledger:
+**PASS** 2026-07-24 on commit `aa80431` (deploy + cook/cast/campaign; this commit also fixes the
+truncated `DEVNET_GENESIS_HASH`/`MAINNET_GENESIS_HASH` constants that blocked devnet before). Ledger:
 [results/RUNS.md](results/RUNS.md). Explorer:
 https://explorer.solana.com/address/GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9?cluster=devnet
 
@@ -94,7 +95,7 @@ supersonic-tx cast --handoff /tmp/cooked/handoff-*.json \
 Verify on-chain: `solana program show GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9`.
 Append new runs with `scripts/log-run.sh` → [results/RUNS.md](results/RUNS.md).
 
-Reference cast (devnet, tip `852856d`):
+Reference cast (devnet, commit `aa80431`):
 `2ZnPuuVxhK4oHDNo3vvuFroJsr1n3wVuTuo6Y9xMF9vt76FNojdhg59fh3BVYJwpGSt9xxtaNbMeHZ3xNmz5gRYg`
 (313/1232, 3 decoys). Campaign repeatability: two independent cook cycles, all txs Finalized.
 
