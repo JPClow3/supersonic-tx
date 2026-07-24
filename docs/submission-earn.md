@@ -21,8 +21,7 @@ It is **not** a mixer, tumbler, shielded pool, or ZK privacy system. Threat mode
 | Repository | https://github.com/JPClow3/supersonic-tx |
 | Branch (judge entry) | `feature/bar-c` |
 | Release tag | [`v0.1.0-bar-c`](https://github.com/JPClow3/supersonic-tx/releases/tag/v0.1.0-bar-c) |
-| Tag commit (peel) | `accfa03a6236e1d987f41eba1668f2a3aad06494` |
-| Docs tip | `feature/bar-c` may be 1+ commits ahead of the tag (includes this Earn draft). Retag or merge before submit if judges should open the exact tip. |
+| Tag commit (peel) | same as tag `v0.1.0-bar-c` — run `git rev-parse v0.1.0-bar-c^{}` after fetch |
 | License | MIT |
 
 ### Which tool (bounty scope)
@@ -42,11 +41,11 @@ It is **not** a mixer, tumbler, shielded pool, or ZK privacy system. Threat mode
 
 | Evidence | Link / note |
 | --- | --- |
-| Green CI (workspace `rust` + dual-lock `sbf`) | https://github.com/JPClow3/supersonic-tx/actions/runs/30060669604 |
+| Green CI (workspace `rust` + dual-lock `sbf`) | https://github.com/JPClow3/supersonic-tx/actions/runs/30061171647 |
 | Tests | `cargo test --workspace --locked` (+ standalone router crate tests). Reference Docker suite: **56** executable tests (50 workspace + 6 router). |
-| Localnet smoke | **PASS** 2026-07-23 — Docker validator, deploy program, `cook` → `cast --via-router --send`. Details: [docs/smoke.md](smoke.md). |
-| Reference cast signature (localnet) | `3bx8PvSJBCqksKurDXGkhepumDotj5DfXj68XZeLuxL9ottieDJqGn2DDZoCa1WcjMh8wwSZsSfm9mMWKGFYLW7s` — simulation OK, **484/1232** bytes, **6** decoys. |
-| Devnet | **Not deployed yet** — blocked on funded deployer (public faucet may 429). Same program ID reserved; reproducible via Docker localnet per [docs/deploy.md](deploy.md). No invented explorer URLs. |
+| Localnet smoke | **PASS** 2026-07-24 — Docker validator, deploy program, `cook` → `cast --via-router --send`. Details: [docs/smoke.md](smoke.md). |
+| Reference cast signature (localnet) | `39iuxT1gGq2jsRzUwtb5441ME6aebnTuXhSzrd3yfFvttpGW5LBqGKnbsxbu7FvaTJh3ztek5EWjFw7cQqG7tpdE` — simulation OK, **484/1232** bytes, **6** decoys. |
+| Devnet | **Not deployed** — needs funded deployer (public faucet may 429). Same program ID reserved; reproducible via Docker localnet per [docs/deploy.md](deploy.md). No invented explorer URLs. |
 
 Judge path (60s): clone → checkout `v0.1.0-bar-c` → Docker `cargo test --workspace --locked` (see README). Full smoke: [docs/smoke.md](smoke.md).
 
@@ -92,15 +91,26 @@ Rust E2E noise toolkit (`supersonic-tx` + integrated `account-cooker`): Approach
 
 Repo (tag `v0.1.0-bar-c`): https://github.com/JPClow3/supersonic-tx
 
-CI: https://github.com/JPClow3/supersonic-tx/actions/runs/30060669604
+CI: https://github.com/JPClow3/supersonic-tx/actions/runs/30061171647
+
+Localnet cast: `39iuxT1gGq2jsRzUwtb5441ME6aebnTuXhSzrd3yfFvttpGW5LBqGKnbsxbu7FvaTJh3ztek5EWjFw7cQqG7tpdE`
 
 ---
 
 ## Checklist before paste-submit
 
 - [ ] Brazil eligibility confirmed by operator
-- [ ] Tag/commit still match remote tip you intend judges to open (retag `v0.1.0-bar-c` onto tip if Earn draft should be under the tag)
-- [ ] If Phase B lands: add devnet deploy + smoke sigs + Solscan/explorer links to README Deployments **and** update this draft
-- [ ] Re-read bounty “great contribution” criteria once against this text
-- [ ] No secrets / keypairs in repo or form attachments
-- [ ] README Verification CI URL matches the run you cite here (`30060669604`); older run `30060436719` is also green but not the tip
+- [x] Tag `v0.1.0-bar-c` retagged onto tip (Phase D) so judges opening the tag see Earn draft + Phase B smoke
+- [ ] Devnet optional: only if funded deployer — then add Solscan/explorer links to README Deployments **and** this draft
+- [x] Re-read bounty “great contribution” criteria once against this text (Rust E2E, tested/deployable, realistic noise, docs, MIT, cooker composability)
+- [x] No secrets / keypairs in repo or form attachments (operator keypaths gitignored under `.tmp-operator-sim/`)
+- [x] README Verification CI URL matches the run cited here (`30061171647`)
+
+---
+
+## What you do next (Earn submit — operator only)
+
+1. Open Superteam Earn → Brazil noise bounty → **Submit**.
+2. Paste from this file: summary one-liner + “Submission text” sections (repo URL, tag `v0.1.0-bar-c`, CI + localnet cast proof).
+3. Confirm **Brazil / regional eligibility** checkbox.
+4. Click **Submit** yourself — do not ask an agent to submit on your behalf.
