@@ -199,10 +199,6 @@ impl Cooker {
         if sponsor.pubkey() != self.sponsor_pubkey || sponsor.pubkey() != handoff_sponsor {
             return Err(CookerError::SponsorMismatch);
         }
-        let blockhash = rpc
-            .get_latest_blockhash()
-            .await
-            .map_err(|error| CookerError::Rpc(error.to_string()))?;
 
         for account in &handoff.accounts {
             if account.funded_lamports == 0 {
@@ -212,6 +208,11 @@ impl Cooker {
                 .pubkey
                 .parse::<Pubkey>()
                 .map_err(|error| CookerError::Rpc(format!("invalid account pubkey: {error}")))?;
+            // Refresh after each confirm so large sink batches cannot expire mid-fund.
+            let blockhash = rpc
+                .get_latest_blockhash()
+                .await
+                .map_err(|error| CookerError::Rpc(error.to_string()))?;
             let instruction = system_instruction::transfer(
                 &sponsor.pubkey(),
                 &destination,

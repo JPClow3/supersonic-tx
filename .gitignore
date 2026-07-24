@@ -10,3 +10,6 @@ target/deploy/*-keypair.json
 !docs/**
 # Agent process notes are non-authoritative (spec §11.1)
 .agents/
+
+.tmp-operator-sim/
+

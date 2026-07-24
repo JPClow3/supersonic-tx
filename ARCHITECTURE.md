@@ -59,10 +59,12 @@ instructions. The builder returns manifest, `VersionedMessage`, and serialized s
 ## Signing and RPC
 
 `sign_versioned_tx` requires all signers; default signatures are rejected before simulate or
-send. `simulate_and_send` always runs `simulateTransaction`; broadcast is gated by
-`SendOptions { broadcast: true }` (`--send`).
+send. `simulate_and_send` always runs `simulateTransaction`; broadcast uses
+`send_and_confirm_transaction` so multi-tx campaigns and `--drain-to` observe finalized
+balances. Broadcast is gated by `SendOptions { broadcast: true }` (`--send`).
 
-Cluster is checked via genesis hash (`cook` / handoff load). `--alt` simulation failures on
+Cluster is checked via genesis hash (`cook` / handoff load). `localnet` additionally requires
+a loopback `--rpc-url` (`localhost` / `127.0.0.1`). `--alt` simulation failures on
 cast/campaign trigger a non-ALT retry path.
 
 ## Campaign isolation
@@ -73,8 +75,8 @@ cast/campaign trigger a non-ALT retry path.
 - Decoy-only simulate/send errors: logged, execution continues (best-effort).
 - Real-intent errors: fatal.
 - CLI prebuilds all txs, computes live fees and transfer spend, skips decoys that would breach
-  the real-intent lamport reserve.
-- `--drain-to` (requires `--send --handoff`) runs post-campaign cooker drain.
+  the real-intent lamport reserve, then recompiles each tx with a fresh blockhash before send.
+- `--drain-to` (requires `--send --handoff`) runs only after the real intent confirms.
 
 ## Router (opt-in)
 
