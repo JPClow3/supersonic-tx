@@ -68,8 +68,9 @@ supersonic-tx cast --handoff /tmp/cooked/handoff-*.json \
 ```
 
 **Expected shape:** simulation OK, payload under **1232** bytes (reference run: **484/1232**),
-several decoys interleaved (reference: **6**), confirmed signature printed. Reference cast:
-`3bx8PvSJBCqksKurDXGkhepumDotj5DfXj68XZeLuxL9ottieDJqGn2DDZoCa1WcjMh8wwSZsSfm9mMWKGFYLW7s`.
+several decoys interleaved (reference: **6**), confirmed signature printed. Reference cast
+(2026-07-24 localnet refresh at commit `971fb96`):
+`39iuxT1gGq2jsRzUwtb5441ME6aebnTuXhSzrd3yfFvttpGW5LBqGKnbsxbu7FvaTJh3ztek5EWjFw7cQqG7tpdE`.
 
 Levels: `light` | `standard` | `paranoid`. Campaign isolation: `campaign --isolate-intent true`
 (default) keeps statistical transfers out of the real-intent tx. Opt-in router CPI:
@@ -95,8 +96,23 @@ Without RPC-validated sinks, the builder falls back to CU/memo/router-only (`wit
 
 | Cluster | Program ID | Recorded (UTC) | Notes |
 | --- | --- | --- | --- |
-| localnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-23 | Smoke **PASS** — Docker validator + `cook` ? `cast --via-router --send`. Genesis hash ephemeral per `--reset`. |
-| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | — | Not deployed yet — needs funded deployer wallet (public faucet may 429). |
+| localnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-24 | Smoke **PASS** — Docker `supersonic-localnet` + `cook` → `cast --via-router --send`. Commit `971fb96`. Genesis `Dwas9mCe5QyEPZpJNXewNjhtYpHbcRK2vdN8zjUPfypi` (ephemeral per `--reset`). |
+| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | — | Not deployed — needs funded deployer wallet (public faucet may 429). Reproduce locally via [docs/deploy.md](docs/deploy.md) + [docs/smoke.md](docs/smoke.md). |
+
+### Localnet signatures (judge copy-paste)
+
+Localnet genesis is **ephemeral** — Solscan / Explorer links will **not** resolve these. Confirm with
+`solana confirm <SIG> --url http://127.0.0.1:8899` against a live `solana-test-validator`, or re-run
+the smoke path below.
+
+| Step | Signature |
+| --- | --- |
+| Deployer airdrop | `3Rcnw2eq8cp9SgJYEYGhWHqN7SigZvzVyuAtug4T2iYePfzmTSU1U8mwnt6PLy1qxMTJnzeo6g2aLGJs5KsR2kRV` |
+| Program deploy | `3ybMFoUh3oVDY51ZBJfj9ZUNjEiduArYbznNRNAm4cvyJFy16opcRkMpnt9QJwnN9dbwDWZV9LnbGfcGrnxgCCF1` |
+| Cast `--via-router --send` | `39iuxT1gGq2jsRzUwtb5441ME6aebnTuXhSzrd3yfFvttpGW5LBqGKnbsxbu7FvaTJh3ztek5EWjFw7cQqG7tpdE` |
+
+Cast shape: **484/1232** bytes, **6** decoys, status **Finalized**. Operator script:
+`.superpowers/sdd/briefs/run-phase-b-smoke.sh` (after `docs/deploy.md` localnet validator + deploy).
 
 ---
 
@@ -117,7 +133,7 @@ Without RPC-validated sinks, the builder falls back to CU/memo/router-only (`wit
 | --- | --- |
 | Workspace tests | `cargo test --workspace --locked` — GitHub Actions **rust** job ([workflow](.github/workflows/ci.yml)) |
 | SBF `.so` + IDL | Dual-lock script in Actions **sbf** job (`backpackapp/build:v0.30.1`) |
-| Localnet smoke | [docs/smoke.md](docs/smoke.md) — deploy + cast signatures recorded 2026-07-23 |
+| Localnet smoke | [docs/smoke.md](docs/smoke.md) — deploy + cast signatures refreshed 2026-07-24 (see **Deployments**) |
 | Green CI run | [Actions run 30060436719](https://github.com/JPClow3/supersonic-tx/actions/runs/30060436719) — workspace `rust` + dual-lock `sbf` green |
 
 ---

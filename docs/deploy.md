@@ -74,7 +74,9 @@ Lock policy: [ARCHITECTURE.md](../ARCHITECTURE.md#build-and-test-layout).
 
 ## Localnet (validated path)
 
-Used for bar-C smoke PASS (2026-07-23). Genesis hash changes on every validator `--reset`.
+Used for bar-C smoke PASS (2026-07-23) and Phase B refresh (2026-07-24). Genesis hash
+changes on every validator `--reset` — public explorers will not resolve localnet
+signatures; record copy-paste sigs in [smoke.md](smoke.md) / README **Deployments**.
 
 ### 1. Start validator
 
