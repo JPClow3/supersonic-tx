@@ -21,7 +21,7 @@ It is **not** a mixer, tumbler, shielded pool, or ZK privacy system. Threat mode
 | Repository | https://github.com/JPClow3/supersonic-tx |
 | Branch (judge entry) | `feature/bar-c` |
 | Release tag | [`v0.1.0-bar-c`](https://github.com/JPClow3/supersonic-tx/releases/tag/v0.1.0-bar-c) |
-| Tag commit (peel) | 2efc70108d7252f2c95eae51da967b2c8a032035 (retag moves with tip) |
+| Tag commit (peel) | identical to tag v0.1.0-bar-c tip (git rev-parse v0.1.0-bar-c^{}) |
 | License | MIT |
 
 ### Which tool (bounty scope)
