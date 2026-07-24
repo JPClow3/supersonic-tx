@@ -1,0 +1,24 @@
+    Finished release [optimized] target(s) in 0.54s
+ Downloading crates ...
+  Downloaded serde_spanned v0.6.9
+  Downloaded toml_write v0.1.2
+  Downloaded winnow v0.7.15
+  Downloaded toml_edit v0.22.27
+  Downloaded toml v0.8.23
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.70s
+     Running unittests src/lib.rs (/workspace-target/debug/deps/supersonic_tx-6f8d3e5ed2342491)
+[2026-07-24T01:10:23.864693983Z ERROR cargo_build_sbf] Failed to obtain package metadata: `cargo metadata` exited with an error:     Updating crates.io index
+     Downloading crates ...
+      Downloaded adler2 v2.0.1
+      Downloaded aliasable v0.1.3
+      Downloaded normalize-line-endings v0.3.0
+      Downloaded block-buffer v0.12.1
+    error: failed to parse manifest at `/root/.cargo/registry/src/index.crates.io-6f17d22bba15001f/block-buffer-0.12.1/Cargo.toml`
+    
+    Caused by:
+      feature `edition2024` is required
+    
+      The package requires the Cargo feature called `edition2024`, but that feature is not stabilized in this version of Cargo (1.79.0 (ffa9cf99a 2024-06-03)).
+      Consider trying a newer version of Cargo (this may require the nightly release).
+      See https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#edition-2024 for more information about the status of this feature.
+    

@@ -1,0 +1,97 @@
+﻿=== full-suite 2026-07-23T22:43:38.9406699-03:00 ===
+STEP: cargo fmt --check
+EXIT: fmt 0
+STEP: cargo test --workspace --locked
+cargo :    Compiling serde v1.0.229
+No C:\Users\lives\AppData\Local\Temp\ps-script-4baabc0c-da81-49b3-960e-f3bb9505c786.ps1:80 caractere:180
++ ... ked" | Add-Content $log; cargo test --workspace --locked 2>&1 | Tee-O ...
++                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling serde v1.0.229:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   Compiling thiserror v1.0.69
+   Compiling zeroize v1.3.0
+   Compiling ahash v0.8.12
+   Compiling num-bigint v0.4.8
+   Compiling ark-std v0.4.0
+   Compiling digest v0.9.0
+   Compiling ark-serialize-derive v0.4.2
+   Compiling subtle v2.4.1
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling crossbeam-deque v0.8.7
+   Compiling toml_edit v0.25.13+spec-1.1.0
+   Compiling wasm-bindgen-shared v0.2.126
+   Compiling paste v1.0.15
+   Compiling rand_chacha v0.2.2
+   Compiling derivative v2.2.0
+   Compiling ark-ff-asm v0.4.2
+   Compiling libsecp256k1-core v0.2.2
+   Compiling hashbrown v0.13.2
+   Compiling toml v0.5.11
+   Compiling base64 v0.21.7
+   Compiling tinyvec_macros v0.1.1
+   Compiling rayon-core v1.13.0
+   Compiling tinyvec v1.12.0
+   Compiling rand v0.7.3
+   Compiling generic-array v0.14.7
+   Compiling hybrid-array v0.4.13
+   Compiling feature-probe v0.1.1
+   Compiling libsecp256k1-gen-ecmult v0.2.1
+   Compiling ark-ff-macros v0.4.2
+   Compiling bv v0.11.1
+   Compiling proc-macro-crate v0.1.5
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling block-buffer v0.9.0
+   Compiling crypto-mac v0.8.0
+   Compiling digest v0.10.7
+   Compiling sha2 v0.9.9
+   Compiling proc-macro-crate v3.5.0
+   Compiling libsecp256k1-gen-genmult v0.2.1
+   Compiling ark-serialize v0.4.2
+   Compiling hmac v0.8.1
+   Compiling winapi v0.3.9
+   Compiling solana-frozen-abi-macro v1.18.26
+   Compiling borsh-derive-internal v0.10.4
+   Compiling bitmaps v2.1.0
+   Compiling im v15.1.0
+   Compiling cmov v0.5.4
+   Compiling keccak v0.1.6
+   Compiling rustc-hash v1.1.0
+   Compiling bumpalo v3.20.3
+   Compiling cfg_aliases v0.2.2
+   Compiling ctutils v0.4.2
+   Compiling sized-chunks v0.6.5
+   Compiling wasm-bindgen-macro-support v0.2.126
+   Compiling libsecp256k1 v0.6.0
+   Compiling borsh v1.8.0
+   Compiling sha2 v0.10.9
+   Compiling rayon v1.12.0
+   Compiling ark-ff v0.4.2
+   Compiling curve25519-dalek v3.2.1
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling wasm-bindgen v0.2.126
+   Compiling serde_json v1.0.151
+   Compiling solana-frozen-abi v1.18.26
+   Compiling rand_xoshiro v0.6.0
+   Compiling blake3 v1.8.5
+   Compiling borsh-derive-internal v0.9.3
+   Compiling borsh-schema-derive-internal v0.10.4
+   Compiling borsh-schema-derive-internal v0.9.3
+   Compiling memoffset v0.9.1
+   Compiling bs58 v0.4.0
+   Compiling arrayref v0.3.9
+   Compiling digest v0.11.3
+   Compiling borsh-derive v0.9.3
+   Compiling borsh-derive v0.10.4
+error: failed to run custom build command for `solana-frozen-abi v1.18.26`
+
+Caused by:
+  could not execute process `H:\Code\Pessoais\SP - 
+Solana\supersonic-tx\target\debug\build\solana-frozen-abi-df0894a3be5a4070\build-script-build` (never executed)
+
+Caused by:
+  Uma pol├¡tica de Controle de Aplicativo bloqueou este arquivo. (os error 4551)
+warning: build failed, waiting for other jobs to finish...
+EXIT: workspace-test 101

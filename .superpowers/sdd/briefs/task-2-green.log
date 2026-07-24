@@ -1,0 +1,27 @@
+﻿cargo :    Compiling proc-macro2 v1.0.107
+No C:\Users\lives\AppData\Local\Temp\ps-script-d6dabf85-aafd-4daf-ac3b-33f732e5aa7f.ps1:117 caractere:931
++ ... cli\Cargo.toml" -Force; cargo check -p supersonic-tx-sdk 2>&1 | Out-F ...
++                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling proc-macro2 v1.0.107:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   Compiling cc v1.3.0
+   Compiling generic-array v0.14.7
+    Checking rand_chacha v0.3.1
+   Compiling indexmap v2.14.0
+   Compiling num-traits v0.2.19
+    Checking num-integer v0.1.46
+   Compiling libc v0.2.189
+   Compiling crunchy v0.2.4
+    Checking crossbeam-utils v0.8.22
+   Compiling getrandom v0.1.16
+   Compiling winapi v0.3.9
+error: failed to run custom build command for `proc-macro2 v1.0.107`
+
+Caused by:
+  could not execute process 
+`C:\temp\supersonic-tx-task2\target\debug\build\proc-macro2-4df66588f001c127\build-script-build` (never executed)
+
+Caused by:
+  Uma pol├¡tica de Controle de Aplicativo bloqueou este arquivo. (os error 4551)
+warning: build failed, waiting for other jobs to finish...
