@@ -134,7 +134,7 @@ Cast shape: **484/1232** bytes, **6** decoys, status **Finalized**. Operator scr
 | Workspace tests | `cargo test --workspace --locked` — GitHub Actions **rust** job ([workflow](.github/workflows/ci.yml)) |
 | SBF `.so` + IDL | Dual-lock script in Actions **sbf** job (`backpackapp/build:v0.30.1`) |
 | Localnet smoke | [docs/smoke.md](docs/smoke.md) — deploy + cast signatures refreshed 2026-07-24 (see **Deployments**) |
-| Green CI run | [Actions run 30061374716](https://github.com/JPClow3/supersonic-tx/actions/runs/30061374716) — workspace `rust` + dual-lock `sbf` green |
+| Green CI run | [Actions run 30061536023](https://github.com/JPClow3/supersonic-tx/actions/runs/30061536023) — workspace `rust` + dual-lock `sbf` green |
 
 ---
 
