@@ -1,56 +1,107 @@
 # Architecture
 
-`account-cooker` produces funded keypairs and a schema-v1 handoff. The CLI resolves
-those keys, verifies transfer sinks through RPC, and asks the SDK to build one final
-manifest. That exact manifest is compiled into a Solana V0 message, checked against the
-1232-byte payload limit, signed, simulated, and optionally sent.
+**Approach 1 (v1):** one global shared Anchor router (`programs/supersonic-tx`) plus an
+off-chain orchestrator (SDK + CLI). The router supplies opt-in noop/CPI decoys; entropy,
+campaign scheduling, ALT selection, and MTU shrink live off-chain.
 
 ```text
-account-cooker -> handoff -> CLI -> SDK builder/ALT/signing -> Solana RPC
-                                      |
-                                      +-> optional deployed Anchor router
+account-cooker  →  handoff JSON  →  CLI  →  SDK (builder / campaign / ALT / sign)
+                                              ↓
+                                   programs/supersonic-tx (shared router, optional CPI)
+                                              ↓
+                                         Solana RPC
 ```
 
-## Decoy policy
+There is **no Jupiter or DEX decoy narrative**. Statistical transfer noise goes only to
+RPC-validated system-wallet sinks (cooked `DecoySink` accounts or explicit `--tip` allowlist).
 
-Allowed atomic decoys are compute-budget instructions, memos, transfers to
-RPC-validated non-executable system wallets, and router noops after deployment
-verification. Arbitrary custom generators and transfers to program IDs are not exposed
-by the safe builder.
+## Components
 
-Security levels require validated transfer sinks unless the caller explicitly chooses
-`without_transfer_noise`. Router noise is separately opt-in; no default transaction
-depends on an unproven deployment.
+| Layer | Responsibility |
+| --- | --- |
+| **account-cooker** | Fresh keypairs; sponsor-funded fee payer + sinks; schema-v1 handoff; optional drain |
+| **supersonic-tx-core** | `ObfuscationLevel`, manifest types, errors, `MAX_TX_PAYLOAD_BYTES = 1232`, program ID |
+| **supersonic-tx-sdk** | Decoy generators, `FuzzyBundleBuilder`, `AltResolver`, `CampaignPlanner`, sign/simulate/send |
+| **supersonic-tx-cli** | Operator surface: `cook`, `assemble`, `simulate`, `cast`, `campaign`, `info` |
+| **supersonic_tx (Anchor)** | `noop_decoy`; `execute_fuzzy_bundle` CPI wrapper (opt-in via `--via-router`) |
+
+Program ID: `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` (synced across `declare_id!`,
+core constant, deploy keypair, `Anchor.toml`).
+
+## Fail-soft sinks and provenance
+
+Allowed atomic decoys:
+
+- Compute-budget instructions
+- Memo program instructions
+- System transfers to **validated sinks** only
+- Router `noop_decoy` (after deployment check)
+- Target instruction (user intent), optionally wrapped by router CPI
+
+`TrustedSystemAccount` records provenance before RPC validation:
+
+- **`from_cooker_decoy_sink`** — handoff `DecoySink` role + secret path under cook dir
+- **`try_from_tip_allowlist`** — operator-supplied `--tip` pubkey on the CLI allowlist
+
+`DecoySink::validate_on_chain` rejects executable accounts and non-system owners. Without
+validated sinks, the builder calls `without_transfer_noise()` (CU/memo/router only).
+
+Security levels gate decoy counts; arbitrary custom generators and transfers to program IDs
+are not exposed on the safe builder path.
 
 ## ALT and MTU
 
-An ALT pubkey is resolved from its on-chain account and owner, never synthesized.
-Compilation falls back to no ALT when fetch or decode fails. Shrink order removes
-transfer noise, memo noise, priority price, and extra router noise before the protected
-compute-unit limit. Target instructions are never removed.
-
-The builder returns the final `BundleManifest`, `VersionedMessage`, and serialized size
-together so diagnostics cannot describe a different randomized bundle.
+`AltResolver` RPC-fetches the lookup table; it is never synthesized in memory. On fetch/decode
+failure, compilation falls back to non-ALT V0 and shrinks decoys. Shrink order drops
+statistical transfers first, then memo, priority price, and extra router noise—never target
+instructions. The builder returns manifest, `VersionedMessage`, and serialized size together.
 
 ## Signing and RPC
 
-`VersionedTransaction::try_new` must resolve every signer. Default signatures are
-rejected before simulation or broadcast. `simulate_and_send` always runs
-`simulateTransaction`; sending is conditional on an explicit broadcast option.
+`sign_versioned_tx` requires all signers; default signatures are rejected before simulate or
+send. `simulate_and_send` always runs `simulateTransaction`; broadcast is gated by
+`SendOptions { broadcast: true }` (`--send`).
+
+Cluster is checked via genesis hash (`cook` / handoff load). `--alt` simulation failures on
+cast/campaign trigger a non-ALT retry path.
 
 ## Campaign isolation
 
-`CampaignPlanner` labels transactions as `DecoyOnly` or `RealIntent`. With isolation
-enabled (the CLI default), statistical transfers never enter the real-intent
-transaction. Decoy-only errors are logged and execution continues; real-intent errors
-fail the command. Every planned manifest uses the shared MTU shrink loop. The CLI
-prebuilds the campaign, computes live fees and System Program transfer spend, and skips
-any decoy that would breach the real-intent reserve.
+`CampaignPlanner` labels each planned tx `DecoyOnly` or `RealIntent`. With
+`--isolate-intent` (default **true**), statistical transfers stay out of the real-intent tx.
 
-## Router
+- Decoy-only simulate/send errors: logged, execution continues (best-effort).
+- Real-intent errors: fatal.
+- CLI prebuilds all txs, computes live fees and transfer spend, skips decoys that would breach
+  the real-intent lamport reserve.
+- `--drain-to` (requires `--send --handoff`) runs post-campaign cooker drain.
 
-The default SDK path does not include the router. `--via-router` wraps the target
-instruction itself; router noops are not a substitute for routing. The CPI wrapper accepts exactly one
-routed CPI, rejects a missing or non-executable target, invokes it, and emits success
-only afterward. Its event reports the executed routed-instruction count rather than a
-caller-asserted decoy count.
+## Router (opt-in)
+
+Default SDK/CLI path uses a direct System Program transfer for the target. `--via-router`:
+
+1. `verify_executable_program` on the deployed router
+2. Wrap target ix in `execute_fuzzy_bundle` with `routed_instruction_count: 1`
+3. Router CPI executes the wrapped instruction; emits `BundleExecuted`
+
+Default decoy path uses `noop_decoy` only—not the CPI wrapper. Router noise is separately
+opt-in and never assumed deployed.
+
+## Build and test layout
+
+| Gate | Command / path | Lock |
+| --- | --- | --- |
+| Format + unit tests | `cargo test --workspace --locked` (Docker `rust:latest`) | Root `Cargo.lock` |
+| Router integration | `cargo test --locked` in `programs/supersonic-tx-tests/` | Standalone lock |
+| SBF artifact | `bar-c-build-sbf-only.sh` in `backpackapp/build:v0.30.1` | `Cargo.lock.sbf.v3` |
+| IDL | `anchor idl build -p supersonic_tx` (same script tail) | SBF lock |
+| Full `anchor build` (all members) | CI job runs it; local full-workspace metadata may fail on Cargo 1.79 | Root lock |
+
+Dual-lock policy avoids edition2024 transitive pulls during `cargo build-sbf` metadata.
+See [docs/deploy.md](docs/deploy.md) and `.superpowers/sdd/briefs/bar-c-status-2026-07-23.md`.
+
+## Threat model (honest)
+
+Behavioral obscurity against automated graph/shape heuristics—not cryptographic privacy.
+Sponsor funding, timing, account locks, instruction data, and shared-router use remain
+visible. See README and `supersonic-tx info`.
