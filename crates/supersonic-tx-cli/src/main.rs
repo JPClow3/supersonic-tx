@@ -423,8 +423,14 @@ async fn run_cast(
     send: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let rpc = RpcClient::new(rpc_url.clone());
-    let accounts =
-        load_accounts(&rpc, &rpc_url, keypair.as_deref(), handoff.as_deref(), &tips).await?;
+    let accounts = load_accounts(
+        &rpc,
+        &rpc_url,
+        keypair.as_deref(),
+        handoff.as_deref(),
+        &tips,
+    )
+    .await?;
     let built = build_signed(
         &rpc,
         &accounts,
@@ -577,14 +583,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return Err("--drain-to requires --send".into());
             }
             let rpc = RpcClient::new(rpc_url.clone());
-            let accounts = load_accounts(
-                &rpc,
-                &rpc_url,
-                keypair.as_deref(),
-                handoff.as_deref(),
-                &tip,
-            )
-            .await?;
+            let accounts =
+                load_accounts(&rpc, &rpc_url, keypair.as_deref(), handoff.as_deref(), &tip).await?;
             let payer = accounts.payer.pubkey();
             let plan = CampaignPlanner::new(payer, level.into())
                 .with_sinks(accounts.sinks.clone())
@@ -688,9 +688,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             if let Some(destination) = drain_to {
                 if !real_intent_confirmed {
-                    return Err(
-                        "--drain-to requires a confirmed real-intent broadcast".into(),
-                    );
+                    return Err("--drain-to requires a confirmed real-intent broadcast".into());
                 }
                 let (handoff, directory) = accounts
                     .handoff
