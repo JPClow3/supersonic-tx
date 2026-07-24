@@ -14,7 +14,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use supersonic_tx_core::{ObfuscationLevel, SupersonicError, MAX_TX_PAYLOAD_BYTES};
 use supersonic_tx_sdk::{
     sign_versioned_tx, simulate_and_send, verify_executable_program, AltResolver, CampaignPlanner,
-    DecoySink, FuzzyBundleBuilder, PlannedTxKind, SendOptions, TrustedSystemAccount,
+    DecoySink, FuzzyBundleBuilder, PlannedTxKind, SendOptions, TokenDecoyRoute, TokenProgramKind,
+    TrustedSystemAccount,
 };
 
 const DEFAULT_RPC_URL: &str = "https://api.devnet.solana.com";
@@ -100,6 +101,10 @@ enum Commands {
         alt: Option<String>,
         #[arg(long)]
         tip: Vec<String>,
+        /// SPL Token / Token-2022 decoy route: source:destination:mint:decimals:program:min:max
+        /// (program is "spl" or "token2022"). Repeatable.
+        #[arg(long = "token-route")]
+        token_route: Vec<String>,
         #[arg(long)]
         via_router: bool,
     },
@@ -121,6 +126,10 @@ enum Commands {
         alt: Option<String>,
         #[arg(long)]
         tip: Vec<String>,
+        /// SPL Token / Token-2022 decoy route: source:destination:mint:decimals:program:min:max
+        /// (program is "spl" or "token2022"). Repeatable.
+        #[arg(long = "token-route")]
+        token_route: Vec<String>,
         #[arg(long)]
         via_router: bool,
         #[arg(long)]
@@ -143,6 +152,10 @@ enum Commands {
         alt: Option<String>,
         #[arg(long)]
         tip: Vec<String>,
+        /// SPL Token / Token-2022 decoy route: source:destination:mint:decimals:program:min:max
+        /// (program is "spl" or "token2022"). Repeatable.
+        #[arg(long = "token-route")]
+        token_route: Vec<String>,
         #[arg(long, default_value_t = 2)]
         txs: usize,
         #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
@@ -220,6 +233,42 @@ async fn load_accounts(
     })
 }
 
+/// Parse a `--token-route source:destination:mint:decimals:program:min:max` spec.
+fn parse_token_route(spec: &str) -> Result<TokenDecoyRoute, Box<dyn std::error::Error>> {
+    let parts: Vec<&str> = spec.split(':').collect();
+    let [source, destination, mint, decimals, program, min_amount, max_amount] = parts[..] else {
+        return Err(format!(
+            "invalid --token-route {spec:?}: expected \
+             source:destination:mint:decimals:program:min:max"
+        )
+        .into());
+    };
+    let program = match program {
+        "spl" | "spl-token" => TokenProgramKind::SplToken,
+        "token2022" | "token-2022" => TokenProgramKind::Token2022,
+        other => {
+            return Err(
+                format!("unknown --token-route program {other:?} (use spl or token2022)").into(),
+            )
+        }
+    };
+    Ok(TokenDecoyRoute::try_new(
+        Pubkey::from_str(source)?,
+        Pubkey::from_str(destination)?,
+        Pubkey::from_str(mint)?,
+        decimals.parse()?,
+        program,
+        min_amount.parse()?,
+        max_amount.parse()?,
+    )?)
+}
+
+fn parse_token_routes(
+    specs: &[String],
+) -> Result<Vec<TokenDecoyRoute>, Box<dyn std::error::Error>> {
+    specs.iter().map(|spec| parse_token_route(spec)).collect()
+}
+
 fn cluster_matches_genesis(declared_cluster: &str, genesis: &str, rpc_url: &str) -> bool {
     match declared_cluster {
         "devnet" => genesis == DEVNET_GENESIS_HASH,
@@ -276,6 +325,7 @@ async fn build_signed(
     level: ObfuscationLevel,
     alt: Option<&str>,
     via_router: bool,
+    token_routes: &[TokenDecoyRoute],
 ) -> Result<(solana_sdk::transaction::VersionedTransaction, usize, usize), Box<dyn std::error::Error>>
 {
     let payer = accounts.payer.pubkey();
@@ -295,6 +345,9 @@ async fn build_signed(
     } else {
         builder.with_sinks(accounts.sinks.clone())?
     };
+    if !token_routes.is_empty() {
+        builder = builder.with_token_routes(token_routes.to_vec())?;
+    }
     let tables = resolve_alt(rpc, alt).await?;
     let blockhash = rpc.get_latest_blockhash().await?;
     let built = builder.build_bundle(blockhash, &tables)?;
@@ -419,9 +472,11 @@ async fn run_cast(
     handoff: Option<PathBuf>,
     alt: Option<String>,
     tips: Vec<String>,
+    token_route: Vec<String>,
     via_router: bool,
     send: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let token_routes = parse_token_routes(&token_route)?;
     let rpc = RpcClient::new(rpc_url.clone());
     let accounts = load_accounts(
         &rpc,
@@ -439,6 +494,7 @@ async fn run_cast(
         level.into(),
         alt.as_deref(),
         via_router,
+        &token_routes,
     )
     .await?;
     let (transaction, size, decoys) = built;
@@ -456,6 +512,7 @@ async fn run_cast(
                 level.into(),
                 alt.as_deref(),
                 via_router,
+                &token_routes,
             )
             .await?;
             match simulate_and_send(&rpc, &transaction, SendOptions { broadcast: send }).await {
@@ -475,6 +532,7 @@ async fn run_cast(
                         level.into(),
                         None,
                         via_router,
+                        &token_routes,
                     )
                     .await?;
                     let signature =
@@ -498,6 +556,7 @@ async fn run_cast(
                 level.into(),
                 None,
                 via_router,
+                &token_routes,
             )
             .await?;
             let signature =
@@ -591,10 +650,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             handoff,
             alt,
             tip,
+            token_route,
             via_router,
         } => {
             run_cast(
-                target, amount, level, rpc_url, keypair, handoff, alt, tip, via_router, false,
+                target,
+                amount,
+                level,
+                rpc_url,
+                keypair,
+                handoff,
+                alt,
+                tip,
+                token_route,
+                via_router,
+                false,
             )
             .await?;
         }
@@ -607,11 +677,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             handoff,
             alt,
             tip,
+            token_route,
             via_router,
             send,
         } => {
             run_cast(
-                target, amount, level, rpc_url, keypair, handoff, alt, tip, via_router, send,
+                target,
+                amount,
+                level,
+                rpc_url,
+                keypair,
+                handoff,
+                alt,
+                tip,
+                token_route,
+                via_router,
+                send,
             )
             .await?;
         }
@@ -624,6 +705,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             handoff,
             alt,
             tip,
+            token_route,
             txs,
             isolate_intent,
             send,
@@ -632,19 +714,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if drain_to.is_some() && !send {
                 return Err("--drain-to requires --send".into());
             }
+            let token_routes = parse_token_routes(&token_route)?;
             let rpc = RpcClient::new(rpc_url.clone());
             let accounts =
                 load_accounts(&rpc, &rpc_url, keypair.as_deref(), handoff.as_deref(), &tip).await?;
             let payer = accounts.payer.pubkey();
-            let plan = CampaignPlanner::new(payer, level.into())
+            let mut planner = CampaignPlanner::new(payer, level.into())
                 .with_sinks(accounts.sinks.clone())
                 .isolate_intent(isolate_intent)
-                .decoy_tx_count(txs)
-                .plan(vec![system_instruction::transfer(
-                    &payer,
-                    &Pubkey::from_str(&target)?,
-                    amount,
-                )])?;
+                .decoy_tx_count(txs);
+            if !token_routes.is_empty() {
+                planner = planner.with_token_routes(token_routes);
+            }
+            let plan = planner.plan(vec![system_instruction::transfer(
+                &payer,
+                &Pubkey::from_str(&target)?,
+                amount,
+            )])?;
             let tables = resolve_alt(&rpc, alt.as_deref()).await?;
             // Estimate spend/fees once so decoys cannot breach the real-intent reserve.
             let estimate_hash = rpc.get_latest_blockhash().await?;
@@ -781,6 +867,7 @@ mod tests {
     use super::*;
 
     const TARGET: &str = "4vMGoEDFfVJjF9y85sSvh4WwP76d9B54tE86b8xXN6T";
+    const WSOL: &str = "So11111111111111111111111111111111111111112";
 
     #[test]
     fn invalid_level_is_rejected() {
@@ -795,6 +882,57 @@ mod tests {
             "paranoidd",
         ])
         .is_err());
+    }
+
+    #[test]
+    fn parse_token_route_accepts_valid_spec() {
+        let route = parse_token_route(&format!("{TARGET}:{WSOL}:{TARGET}:6:spl:1000:50000"))
+            .expect("valid spec should parse");
+        assert_eq!(route.decimals, 6);
+        assert_eq!(route.min_amount, 1_000);
+        assert_eq!(route.max_amount, 50_000);
+        assert_eq!(route.program, TokenProgramKind::SplToken);
+    }
+
+    #[test]
+    fn parse_token_route_accepts_token2022() {
+        let route = parse_token_route(&format!("{TARGET}:{WSOL}:{TARGET}:9:token2022:1:2"))
+            .expect("valid spec should parse");
+        assert_eq!(route.program, TokenProgramKind::Token2022);
+    }
+
+    #[test]
+    fn parse_token_route_rejects_wrong_field_count() {
+        assert!(parse_token_route(&format!("{TARGET}:{TARGET}:{TARGET}:6:spl:1000")).is_err());
+    }
+
+    #[test]
+    fn parse_token_route_rejects_unknown_program() {
+        assert!(parse_token_route(&format!(
+            "{TARGET}:{TARGET}:{TARGET}:6:solana-pay:1000:50000"
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn cast_accepts_repeated_token_route_flag() {
+        let cli = Cli::try_parse_from([
+            "supersonic-tx",
+            "cast",
+            "--target",
+            TARGET,
+            "--keypair",
+            "payer.json",
+            "--token-route",
+            &format!("{TARGET}:{WSOL}:{TARGET}:6:spl:1000:50000"),
+            "--token-route",
+            &format!("{TARGET}:{WSOL}:{TARGET}:9:token2022:1:2"),
+        ])
+        .unwrap();
+        match cli.command {
+            Commands::Cast { token_route, .. } => assert_eq!(token_route.len(), 2),
+            _ => panic!("expected cast"),
+        }
     }
 
     #[test]
