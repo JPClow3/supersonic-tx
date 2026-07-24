@@ -38,7 +38,9 @@ This is **obscurity against automated graph / pattern analysis**, not anonymity 
 - Ephemeral / per-user deployable programs as the default path (reserved as future “paranoid” mode).
 - Guaranteeing privacy against human investigators, CEX KYC linkage, or off-chain timing correlation.
 - Jito bundles as a hard requirement (see §13 — stretch only).
-- Full SPL token decoy graphs beyond SOL system transfers and memo/CU/router noise (SPL tip paths may be added later if they stay fail-soft).
+- Full SPL token decoy *ops* beyond SOL system transfers (SDK `TokenDecoyRoute` /
+  `TokenTransferNoise` landed post bar-C; CLI/cooker/mint validation remain open — see
+  README **Roadmap**).
 - Claiming “victory” or bounty completion without green `cargo test --workspace` and `anchor build`.
 
 ---
@@ -103,8 +105,8 @@ supersonic-tx/
 | Component | Crate / path | Responsibility |
 | --- | --- | --- |
 | **account-cooker** | `crates/account-cooker` | Fresh `Keypair`s; sponsor-funded rent+fee balance; optional post-cast drain; `HandoffBundle` JSON; reuse warnings. |
-| **supersonic-tx-core** | `crates/supersonic-tx-core` | `ObfuscationLevel`, `DecoyKind`, `BundleManifest`, `SupersonicError`, `MAX_TX_PAYLOAD_BYTES = 1232`, real `PROGRAM_ID` / `PROGRAM_ID_STR`. |
-| **supersonic-tx-sdk** | `crates/supersonic-tx-sdk` | `DecoyGenerator` implementations, `FuzzyBundleBuilder`, real ALT RPC fetch, campaign planner, assemble → sign → simulate/send helpers. |
+| **supersonic-tx-core** | `crates/supersonic-tx-core` | `ObfuscationLevel`, `BundleManifest`, `SupersonicError`, `MAX_TX_PAYLOAD_BYTES = 1232`, real `PROGRAM_ID` / `PROGRAM_ID_STR`. |
+| **supersonic-tx-sdk** | `crates/supersonic-tx-sdk` | `DecoyGenerator` implementations (`StatisticalTransferNoise`, `MemoNoise`, `ComputeBudgetNoise`, `AnchorRouterNoise`, optional `TokenTransferNoise` via `TokenDecoyRoute` / `TokenProgramKind` / `with_token_routes`), `FuzzyBundleBuilder`, real ALT RPC fetch, campaign planner, assemble → sign → simulate/send helpers. |
 | **Anchor program** | `programs/supersonic-tx` | `noop_decoy`, optional `execute_fuzzy_bundle` CPI wrapper, events, reject `decoy_count == 0`. |
 | **CLI** | `crates/supersonic-tx-cli` binary `supersonic-tx` | Subcommands: `cook`, `simulate`, `cast`, `campaign`, `info`. |
 
@@ -113,14 +115,6 @@ supersonic-tx/
 ```rust
 // crates/supersonic-tx-core — canonical shared types
 pub enum ObfuscationLevel { Light, Standard, Paranoid }
-
-pub enum DecoyKind {
-    NoopCpi,
-    StatisticalTransfer { destination: Pubkey, amount_lamports: u64 },
-    ComputeBudgetPadding { units: u32 },
-    ProtocolMemo { memo: String },
-    Custom { program_id: Pubkey, data: Vec<u8> }, // only for fail-soft, known-safe programs
-}
 
 pub struct BundleManifest {
     pub target_instructions: Vec<Instruction>,
@@ -131,6 +125,24 @@ pub struct BundleManifest {
 
 pub const MAX_TX_PAYLOAD_BYTES: usize = 1232;
 // PROGRAM_ID_STR set after `anchor keys` / deploy — never Super111...
+```
+
+```rust
+// crates/supersonic-tx-sdk — live decoy surface (DecoyGenerator impls)
+// Generators: StatisticalTransferNoise, MemoNoise, ComputeBudgetNoise,
+//             AnchorRouterNoise, TokenTransferNoise
+pub enum TokenProgramKind { SplToken, Token2022 }
+
+pub struct TokenDecoyRoute {
+    pub source: Pubkey,
+    pub destination: Pubkey,
+    pub mint: Pubkey,
+    pub decimals: u8,
+    pub program: TokenProgramKind,
+    pub min_amount: u64,
+    pub max_amount: u64,
+}
+// FuzzyBundleBuilder::with_token_routes(routes) — additive; does not satisfy SOL sinks
 ```
 
 ```rust
@@ -464,13 +476,15 @@ Snapshot of the tree as of this spec (must be closed during implementation):
 
 ## 13. Out of scope / future
 
-| Item | v1 stance |
-| --- | --- |
-| Ephemeral per-cast programs | Future “paranoid” mode only |
-| Jito bundled submission | **Stretch** — implement only if it plugs in cleanly behind a `Submitter` trait (`RpcSubmitter` default, `JitoSubmitter` optional feature). Not required for v1 done. |
-| SPL token decoy edges | Future, fail-soft only |
-| Shared public tip registry service | Out of band; v1 uses config file / CLI flags + cooked sinks |
-| Mobile / non-Rust clients | Out of scope |
+| Item | v1 stance | Status (post bar-C / `main`) |
+| --- | --- | --- |
+| Ephemeral per-cast programs | Future “paranoid” mode only | Unchanged |
+| Jito bundled submission | **Stretch** — implement only if it plugs in cleanly behind a `Submitter` trait (`RpcSubmitter` default, `JitoSubmitter` optional feature). Not required for v1 done. | Unchanged |
+| SPL token decoy edges | Future, fail-soft only | **Partial:** SDK routes + MTU shrink landed; CLI/cooker/RPC mint-ATA validation open |
+| Typed RPC error variants + transient retry | Not in original v1 writeup | **Landed:** core variants + `classify_client_error`; `cast` retries on `is_transient_rpc` |
+| Deeper router CPI program-tests | Spec required `solana-program-test` | **Landed** (incl. remaining-accounts CPI success + failed invoke); bankrun not used |
+| Shared public tip registry service | Out of band; v1 uses config file / CLI flags + cooked sinks | Unchanged |
+| Mobile / non-Rust clients | Out of scope | Unchanged |
 
 ---
 

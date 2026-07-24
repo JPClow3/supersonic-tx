@@ -1,6 +1,7 @@
 use crate::noise::{
     AnchorRouterNoise, ComputeBudgetNoise, DecoyGenerator, DecoySink, MemoNoise,
-    SinkValidationMode, StatisticalTransferNoise,
+    SinkValidationMode, StatisticalTransferNoise, TokenDecoyRoute, TokenTransferNoise,
+    SPL_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID,
 };
 use rand::seq::SliceRandom;
 use solana_sdk::address_lookup_table::AddressLookupTableAccount;
@@ -82,6 +83,24 @@ impl FuzzyBundleBuilder {
         self.generators
             .push(Box::new(AnchorRouterNoise::new(program_id)));
         self
+    }
+
+    /// Opt into SPL Token / Token-2022 transfer decoys (does not satisfy SOL sink requirements).
+    ///
+    /// Token routes are additive noise for organic DeFi-shaped traffic. Atomic SOL levels still
+    /// require `with_sinks` or `without_transfer_noise`.
+    pub fn with_token_routes(
+        mut self,
+        routes: Vec<TokenDecoyRoute>,
+    ) -> Result<Self, SupersonicError> {
+        if routes.is_empty() {
+            return Err(SupersonicError::InvalidDecoyConfig(
+                "token decoys require at least one TokenDecoyRoute".to_string(),
+            ));
+        }
+        self.generators
+            .push(Box::new(TokenTransferNoise::from_routes(routes)));
+        Ok(self)
     }
 
     /// Select sink validation policy. On-chain mode requires a checker that
@@ -243,12 +262,24 @@ impl FuzzyBundleBuilder {
         const MEMO_PROGRAM_ID: &str = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
         let router_program_id = supersonic_tx_core::program_id();
         let memo_program_id = MEMO_PROGRAM_ID.parse::<Pubkey>().ok();
+        let spl_token_id = SPL_TOKEN_PROGRAM_ID.parse::<Pubkey>().ok();
+        let token_2022_id = TOKEN_2022_PROGRAM_ID.parse::<Pubkey>().ok();
         let compute_budget_id = compute_budget::id();
+
+        let is_token_decoy = |program_id: Pubkey| {
+            Some(program_id) == spl_token_id || Some(program_id) == token_2022_id
+        };
 
         let position = manifest
             .decoy_instructions
             .iter()
             .position(|ix| ix.program_id == solana_sdk::system_program::id())
+            .or_else(|| {
+                manifest
+                    .decoy_instructions
+                    .iter()
+                    .position(|ix| is_token_decoy(ix.program_id))
+            })
             .or_else(|| {
                 manifest
                     .decoy_instructions
@@ -308,6 +339,7 @@ impl FuzzyBundleBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::noise::TokenProgramKind;
     use std::str::FromStr;
 
     #[test]
@@ -385,6 +417,57 @@ mod tests {
             .all(|ix| ix.program_id != solana_sdk::system_program::id()
                 || ix.data.first() != Some(&2)));
         assert_eq!(manifest.decoy_instructions.len(), 2);
+    }
+
+    #[test]
+    fn shrink_drops_token_transfer_before_memo() {
+        let mut manifest = BundleManifest::new(ObfuscationLevel::Standard);
+        let route = TokenDecoyRoute::try_new(
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            6,
+            TokenProgramKind::SplToken,
+            1_000,
+            10_000,
+        )
+        .unwrap();
+        manifest.decoy_instructions = vec![
+            route.transfer_checked(&Pubkey::new_unique(), 1_500),
+            Instruction {
+                program_id: Pubkey::from_str("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr")
+                    .unwrap(),
+                accounts: vec![],
+                data: b"x".to_vec(),
+            },
+        ];
+        assert!(FuzzyBundleBuilder::shrink_decoys_for_test(&mut manifest));
+        assert_eq!(manifest.decoy_instructions.len(), 1);
+        assert_eq!(
+            manifest.decoy_instructions[0].program_id,
+            Pubkey::from_str("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr").unwrap()
+        );
+    }
+
+    #[test]
+    fn with_token_routes_is_additive_and_does_not_satisfy_sol_sinks() {
+        let route = TokenDecoyRoute::try_new(
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            6,
+            TokenProgramKind::Token2022,
+            1_000,
+            10_000,
+        )
+        .unwrap();
+        let builder = FuzzyBundleBuilder::new(Pubkey::new_unique(), ObfuscationLevel::Light)
+            .with_token_routes(vec![route])
+            .unwrap();
+        let error = builder.build_manifest().unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("requires validated transfer sinks"));
     }
 
     #[test]

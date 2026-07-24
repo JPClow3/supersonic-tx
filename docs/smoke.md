@@ -1,7 +1,7 @@
 # Smoke test — `supersonic_tx`
 
-Operator checklist after deploy. **Localnet PASS** refreshed 2026-07-24 (commit `971fb96`);
-**devnet not run** (funded deployer unavailable; public faucet HTTP 429).
+Operator checklist after deploy. **Localnet PASS** refreshed 2026-07-24 (commit `971fb96`).
+**Devnet PASS** 2026-07-24 (tip `852856d`) — deploy + cook/cast/campaign; see [results/RUNS.md](results/RUNS.md).
 
 Prerequisites:
 
@@ -73,9 +73,11 @@ Prior reference run (2026-07-23, same program ID / cast shape): see
 
 ## Devnet
 
-**Blocked without funded deployer.** Do not assume `solana airdrop` succeeds on public devnet.
+**PASS** 2026-07-24 on tip `852856d` (deploy + cook/cast/campaign). Ledger:
+[results/RUNS.md](results/RUNS.md). Explorer:
+https://explorer.solana.com/address/GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9?cluster=devnet
 
-When funded:
+Public faucet may still 429 — use a pre-funded deployer. Reproduce:
 
 ```bash
 export RPC=https://api.devnet.solana.com
@@ -90,7 +92,11 @@ supersonic-tx cast --handoff /tmp/cooked/handoff-*.json \
 ```
 
 Verify on-chain: `solana program show GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9`.
-Then record Solscan/Explorer links in the README **Deployments** table.
+Append new runs with `scripts/log-run.sh` → [results/RUNS.md](results/RUNS.md).
+
+Reference cast (devnet, tip `852856d`):
+`2ZnPuuVxhK4oHDNo3vvuFroJsr1n3wVuTuo6Y9xMF9vt76FNojdhg59fh3BVYJwpGSt9xxtaNbMeHZ3xNmz5gRYg`
+(313/1232, 3 decoys). Campaign repeatability: two independent cook cycles, all txs Finalized.
 
 ## Campaign smoke (optional)
 
@@ -109,6 +115,8 @@ Decoy failures are logged and skipped; real-intent failure exits non-zero.
 | `account not found` on `program show` | Program not deployed on this cluster |
 | `Underfunded` / debit prior credit | Cook before post-deploy airdrop settles |
 | `RPC genesis hash does not match` | `--cluster` / handoff cluster ≠ RPC URL |
+| `RPC blockhash not found` / transport errors on `cast` | Transient RPC; CLI rebuilds once with a fresh blockhash (`is_transient_rpc`) |
+| `RPC insufficient funds for fee` | Fee payer underfunded — not retried as transient |
 | Router error | Program missing or not executable; deploy first |
 | Faucet 429 | Use localnet or a pre-funded devnet wallet |
 

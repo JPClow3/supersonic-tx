@@ -217,6 +217,41 @@ async fn execute_fuzzy_bundle_system_transfer_cpi() {
     assert_eq!(banks.get_balance(recipient).await.unwrap(), 1_000_001);
 }
 
+#[tokio::test]
+async fn execute_fuzzy_bundle_cpi_failure_surfaces_cpi_error() {
+    const CPI_EXECUTION_FAILED: u32 = 6001;
+    let (mut banks, payer, blockhash) = program_test().start().await;
+    // System program is executable, but empty transfer data cannot succeed.
+    let mut accounts = supersonic_tx::accounts::ExecuteFuzzyBundle {
+        authority: payer.pubkey(),
+        system_program: system_program::ID,
+    }
+    .to_account_metas(None);
+    accounts.extend([
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(payer.pubkey(), true),
+        AccountMeta::new(Pubkey::new_unique(), false),
+    ]);
+    let instruction = Instruction {
+        program_id: supersonic_tx::id(),
+        accounts,
+        data: supersonic_tx::instruction::ExecuteFuzzyBundle {
+            bundle_seed: 9,
+            routed_instruction_count: 1,
+            instruction_data: Vec::new(),
+        }
+        .data(),
+    };
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&payer.pubkey()),
+        &[&payer],
+        blockhash,
+    );
+    let error = banks.process_transaction(transaction).await.unwrap_err();
+    assert_custom_error(error, CPI_EXECUTION_FAILED);
+}
+
 fn assert_custom_error(error: BanksClientError, expected_code: u32) {
     let debug = format!("{error:?}");
     assert!(

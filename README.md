@@ -5,9 +5,11 @@ fail-soft CU/memo, cooker-funded sinks, optional shared Anchor router) for algot
 whales, and agents who want behavioral obscurity — **not** a mixer, anonymity set, shielded
 pool, or ZK system.
 
-**Judge entrypoint:** branch [`feature/bar-c`](https://github.com/JPClow3/supersonic-tx/tree/feature/bar-c)
-(repo default) — tag [`v0.1.0-bar-c`](https://github.com/JPClow3/supersonic-tx/releases/tag/v0.1.0-bar-c)
-— MIT [`LICENSE-MIT`](LICENSE-MIT).
+**Active development:** branch [`main`](https://github.com/JPClow3/supersonic-tx/tree/main)
+(bar-C merged). **Earn / judge pin:** tag
+[`v0.1.0-bar-c`](https://github.com/JPClow3/supersonic-tx/releases/tag/v0.1.0-bar-c)
+(historical branch [`feature/bar-c`](https://github.com/JPClow3/supersonic-tx/tree/feature/bar-c)).
+MIT [`LICENSE-MIT`](LICENSE-MIT).
 
 | Quick links | |
 | --- | --- |
@@ -26,7 +28,10 @@ Cargo may hit WDAC 4551 on build scripts).
 ```bash
 git clone https://github.com/JPClow3/supersonic-tx.git
 cd supersonic-tx
-git checkout v0.1.0-bar-c
+# Active development tip:
+git checkout main
+# Earn / judge frozen pin:
+# git checkout v0.1.0-bar-c
 
 # Format + workspace tests (CI mirrors this)
 docker run --rm -v "$PWD:/workspace" -w /workspace rust:latest \
@@ -83,12 +88,15 @@ Levels: `light` | `standard` | `paranoid`. Campaign isolation: `campaign --isola
 | Kind | What it does |
 | --- | --- |
 | Statistical SOL transfers | Benford-ish amounts to cooker `DecoySink` accounts (TrustedSystemAccount + secret path) or allowlisted `--tip` |
+| Statistical token transfers | SDK-only: SPL Token / Token-2022 `TransferChecked` via `FuzzyBundleBuilder::with_token_routes` (additive; does **not** satisfy SOL sink requirements) |
 | ComputeBudget | Fail-soft CU limit / price padding |
 | Memo | Noise memos |
 | Anchor router `noop_decoy` | Shared-program-id zero-op (`--via-router` path also offers `execute_fuzzy_bundle` CPI wrapper) |
 | MTU shrink | Drop decoys in order until ≤1232 bytes; **never** drop the real intent |
 
-Without RPC-validated sinks, the builder falls back to CU/memo/router-only (`without_transfer_noise`).
+Without RPC-validated **SOL** sinks, the builder falls back to CU/memo/router-only
+(`without_transfer_noise`). Token routes are opt-in SDK noise for DeFi-shaped traffic;
+there is no CLI flag and no cooker mint/ATA funding path yet (see **Roadmap**).
 
 ---
 
@@ -97,7 +105,7 @@ Without RPC-validated sinks, the builder falls back to CU/memo/router-only (`wit
 | Cluster | Program ID | Recorded (UTC) | Notes |
 | --- | --- | --- | --- |
 | localnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-24 | Smoke **PASS** — Docker `supersonic-localnet` + `cook` → `cast --via-router --send`. Commit `971fb96`. Genesis `Dwas9mCe5QyEPZpJNXewNjhtYpHbcRK2vdN8zjUPfypi` (ephemeral per `--reset`). |
-| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | — | Not deployed — needs funded deployer wallet (public faucet may 429). Reproduce locally via [docs/deploy.md](docs/deploy.md) + [docs/smoke.md](docs/smoke.md). |
+| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-24 | Deploy + cook/cast/campaign **PASS** on tip `852856d` (working tree needs full 44-char genesis constants). Explorer: [program](https://explorer.solana.com/address/GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9?cluster=devnet). Evidence: [docs/results/RUNS.md](docs/results/RUNS.md). |
 
 ### Localnet signatures (judge copy-paste)
 
@@ -124,6 +132,20 @@ Cast shape: **484/1232** bytes, **6** decoys, status **Finalized**. Operator scr
 | Realistic noise (Benford, fail-soft sinks, MTU shrink, campaign isolate) | Not ZK / shielded / unlinkable funding |
 | Composable `account-cooker` schema-v1 handoff | Not mainnet-ready ops by default |
 | Shared router grows anonymity-set *fingerprint* with `PROGRAM_ID` | Not immune to analysts who know the program ID |
+
+---
+
+## Roadmap (post bar-C / `main`)
+
+Honest status for work that landed on `main` after the Earn pin, or is still open:
+
+| Theme | Status |
+| --- | --- |
+| Typed RPC errors (`RpcBlockhashNotFound`, `RpcInsufficientFundsForFee`, `RpcAlreadyProcessed`, `RpcAccountInUse`, `RpcTransport`) + `is_transient_rpc` / `classify_client_error` | **Landed** in core + SDK; `cast` rebuilds with a fresh blockhash on transient failures |
+| `solana-program-test` router CPI coverage (`routed_instruction_count` ≠ 1, missing/non-executable CPI target, successful System CPI, failed `invoke` → `CpiExecutionFailed`) | **Landed** in `programs/supersonic-tx-tests` (not bankrun) |
+| SPL Token / Token-2022 transfer decoys (`TokenDecoyRoute`, `TokenTransferNoise`, MTU shrink treats them like SOL transfers) | **SDK landed**; CLI / cooker / on-chain mint-ATA validation **not** done |
+| Campaign transient-RPC retry (parity with `cast`) | **Open** |
+| bankrun harness | **Not used** — stick with `solana-program-test` unless a concrete gap appears |
 
 ---
 
@@ -155,7 +177,8 @@ Obscurity against **automated** graph/shape heuristics — not cryptographic pri
 | Unique target instruction data | **Unaffected** |
 
 **Non-goals:** mixing, unlinkability of sponsor funding, ZK, ephemeral per-user programs as
-default, Jito as a hard requirement, SPL decoy graphs beyond SOL system transfers.
+default, Jito as a hard requirement. Full token decoy *ops* (CLI flags, cooker mint/ATA
+funding, RPC mint validation) are still open — SDK routes exist; see **Roadmap**.
 
 Atomic `cast` decoys share fate with the real intent. Use `campaign` with default
 `--isolate-intent true` when a decoy failure must not abort the action.
@@ -192,20 +215,25 @@ Default cast path uses a **direct System Program transfer** for the user intent.
 ## Bundle pipeline
 
 1. **Generators** (level-gated): `StatisticalTransferNoise`, `ComputeBudgetNoise`,
-   `MemoNoise`, `AnchorRouterNoise` (`noop_decoy`). Arbitrary custom generators / transfers
-   to program IDs are not on the safe builder path.
-2. **Sink provenance** -- `TrustedSystemAccount` only:
+   `MemoNoise`, `AnchorRouterNoise` (`noop_decoy`). Optional SDK
+   `TokenTransferNoise` via `with_token_routes` (SPL Token / Token-2022). Arbitrary custom
+   generators / transfers to unknown program IDs are not on the safe builder path.
+2. **Sink provenance** (SOL) -- `TrustedSystemAccount` only:
    - `from_cooker_decoy_sink` -- handoff role `DecoySink` **and** non-empty `secret_key_path`
    - `try_from_tip_allowlist` -- `--tip` pubkey present in the CLI allowlist
 3. **RPC validation** -- `DecoySink::validate_on_chain` rejects executable / non-system owners.
-   Without validated sinks -> `without_transfer_noise()` (CU/memo/router only).
+   Without validated SOL sinks -> `without_transfer_noise()` (CU/memo/router only). Token
+   routes do **not** satisfy that SOL requirement.
 4. **MTU** -- serialize <= `MAX_TX_PAYLOAD_BYTES` (1232). Shrink drop order:
-   statistical System transfers -> memo -> extra router noops (keep >=1) -> CU price -> other
-   decoys. **Never** drop target instructions; protect at least one CU limit if present.
+   statistical System **or** token transfers -> memo -> extra router noops (keep >=1) ->
+   CU price -> other decoys. **Never** drop target instructions; protect at least one CU
+   limit if present.
 5. **V0 + ALT** -- `--alt` RPC-fetches the lookup table (never synthesized). Fetch/decode
    failure -> non-ALT V0 + shrink. Cast/campaign ALT sim failures retry without ALT.
 6. **Sign / send** -- reject default signatures; always `simulateTransaction`; `--send`
-   uses `send_and_confirm_transaction` so campaigns and `--drain-to` see confirmed balances.
+   uses `send_and_confirm_transaction`. RPC failures are classified into typed
+   `SupersonicError` variants (`classify_client_error`); `cast` retries once on
+   `is_transient_rpc()` (blockhash / account-in-use / transport) with a fresh blockhash.
 
 ---
 
@@ -286,7 +314,7 @@ Windows Cargo may hit WDAC error 4551 on build scripts).
 | `crates/supersonic-tx-sdk` | Builder, ALT, campaign, sign/RPC |
 | `crates/supersonic-tx-cli` | Operator binary `supersonic-tx` |
 | `programs/supersonic-tx` | Anchor router |
-| `programs/supersonic-tx-tests/` | Standalone workspace (own lock); **excluded** from root |
+| `programs/supersonic-tx-tests/` | Standalone `solana-program-test` crate (own lock); **excluded** from root |
 
 ### Dual-lock
 
@@ -389,7 +417,7 @@ Never commit cooked keys, sponsor keys, or `target/deploy/*-keypair.json`.
 | --- | --- |
 | Dual-lock SBF vs native | Required for reproducible `.so`/IDL under Anchor 0.30.1 |
 | Full-workspace `anchor build` | May fail on edition2024 metadata; use `bar-c-build-sbf-only.sh` |
-| Devnet deploy/smoke | Needs **funded** deployer wallet (public faucet may 429) |
+| Devnet deploy/smoke | **PASS** 2026-07-24 — see Deployments + [docs/results/RUNS.md](docs/results/RUNS.md) |
 | Windows host Cargo | WDAC 4551 can block build scripts -- use Docker Linux |
 | Shared `PROGRAM_ID` | Operable demo surface; also a clustering handle |
 

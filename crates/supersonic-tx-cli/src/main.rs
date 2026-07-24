@@ -19,8 +19,8 @@ use supersonic_tx_sdk::{
 
 const DEFAULT_RPC_URL: &str = "https://api.devnet.solana.com";
 const CONSERVATIVE_FEE_AND_DECOY_BUDGET: u64 = 255_000;
-const DEVNET_GENESIS_HASH: &str = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
-const MAINNET_GENESIS_HASH: &str = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+const DEVNET_GENESIS_HASH: &str = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+const MAINNET_GENESIS_HASH: &str = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpFmUbFhqhARtq";
 
 #[derive(Parser, Debug)]
 #[command(
@@ -446,6 +446,48 @@ async fn run_cast(
         .await
     {
         Ok(signature) => signature,
+        Err(error) if error.is_transient_rpc() => {
+            eprintln!("Transient RPC error ({error}); rebuilding with a fresh blockhash");
+            let (transaction, retry_size, retry_decoys) = build_signed(
+                &rpc,
+                &accounts,
+                Pubkey::from_str(&target)?,
+                amount,
+                level.into(),
+                alt.as_deref(),
+                via_router,
+            )
+            .await?;
+            match simulate_and_send(&rpc, &transaction, SendOptions { broadcast: send }).await {
+                Ok(signature) => {
+                    println!(
+                        "Transient retry succeeded: {retry_size}/{MAX_TX_PAYLOAD_BYTES} bytes, {retry_decoys} decoys"
+                    );
+                    signature
+                }
+                Err(retry_error) if alt.is_some() => {
+                    eprintln!("ALT transaction failed ({retry_error}); retrying without ALT");
+                    let (transaction, fallback_size, fallback_decoys) = build_signed(
+                        &rpc,
+                        &accounts,
+                        Pubkey::from_str(&target)?,
+                        amount,
+                        level.into(),
+                        None,
+                        via_router,
+                    )
+                    .await?;
+                    let signature =
+                        simulate_and_send(&rpc, &transaction, SendOptions { broadcast: send })
+                            .await?;
+                    println!(
+                        "Non-ALT fallback: {fallback_size}/{MAX_TX_PAYLOAD_BYTES} bytes, {fallback_decoys} decoys"
+                    );
+                    signature
+                }
+                Err(retry_error) => return Err(Box::new(retry_error)),
+            }
+        }
         Err(error) if alt.is_some() => {
             eprintln!("ALT transaction failed ({error}); retrying without ALT");
             let (transaction, fallback_size, fallback_decoys) = build_signed(
@@ -464,6 +506,14 @@ async fn run_cast(
                 "Non-ALT fallback: {fallback_size}/{MAX_TX_PAYLOAD_BYTES} bytes, {fallback_decoys} decoys"
             );
             signature
+        }
+        Err(SupersonicError::RpcAlreadyProcessed) => {
+            // The cluster already has this exact signed transaction (its signature is
+            // deterministic), so "already processed" means it landed, not that it failed.
+            eprintln!(
+                "RPC reports this transaction was already processed; treating as broadcast success"
+            );
+            transaction.signatures.first().copied()
         }
         Err(error) => return Err(Box::new(error)),
     };
@@ -777,6 +827,23 @@ mod tests {
     fn campaign_skips_decoy_at_real_intent_reserve_boundary() {
         assert!(!decoy_preserves_reserve(110, 100, 10, 1));
         assert!(decoy_preserves_reserve(111, 100, 10, 1));
+    }
+
+    #[test]
+    fn cluster_genesis_hashes_are_full_base58() {
+        // Truncated 32-char prefixes previously rejected every real cluster RPC.
+        assert_eq!(DEVNET_GENESIS_HASH.len(), 44);
+        assert_eq!(MAINNET_GENESIS_HASH.len(), 44);
+        assert!(cluster_matches_genesis(
+            "devnet",
+            DEVNET_GENESIS_HASH,
+            "https://api.devnet.solana.com"
+        ));
+        assert!(cluster_matches_genesis(
+            "mainnet-beta",
+            MAINNET_GENESIS_HASH,
+            "https://api.mainnet-beta.solana.com"
+        ));
     }
 
     #[test]

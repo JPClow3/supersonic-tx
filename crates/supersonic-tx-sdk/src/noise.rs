@@ -1,6 +1,7 @@
 use account_cooker::{CookedAccount, CookedRole};
 use rand::Rng;
 use solana_client::nonblocking::rpc_client::RpcClient;
+#[cfg(test)]
 use solana_sdk::account::Account;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::instruction::{AccountMeta, Instruction};
@@ -511,6 +512,171 @@ impl DecoyGenerator for MemoNoise {
     }
 }
 
+/// Classic SPL Token program id.
+pub const SPL_TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+/// Token-2022 program id.
+pub const TOKEN_2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+
+/// Token program family used for statistical token-transfer decoys.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TokenProgramKind {
+    /// Classic SPL Token (`Tokenkeg...`).
+    SplToken,
+    /// Token-2022 (`TokenzQd...`).
+    Token2022,
+}
+
+impl TokenProgramKind {
+    pub fn program_id(self) -> Pubkey {
+        match self {
+            Self::SplToken => Pubkey::from_str(SPL_TOKEN_PROGRAM_ID).expect("valid SPL Token id"),
+            Self::Token2022 => {
+                Pubkey::from_str(TOKEN_2022_PROGRAM_ID).expect("valid Token-2022 id")
+            }
+        }
+    }
+}
+
+/// Error returned when a token decoy route fails validation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InvalidTokenDecoyRoute {
+    ZeroAmountBounds,
+    MinExceedsMax { min_amount: u64, max_amount: u64 },
+    IdenticalSourceDestination { account: Pubkey },
+}
+
+impl fmt::Display for InvalidTokenDecoyRoute {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ZeroAmountBounds => write!(f, "token decoy max_amount must be >= 1"),
+            Self::MinExceedsMax {
+                min_amount,
+                max_amount,
+            } => write!(
+                f,
+                "token decoy min_amount {min_amount} exceeds max_amount {max_amount}"
+            ),
+            Self::IdenticalSourceDestination { account } => {
+                write!(
+                    f,
+                    "token decoy source and destination are identical: {account}"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for InvalidTokenDecoyRoute {}
+
+/// Provenance-gated SPL Token / Token-2022 transfer route for decoy traffic.
+///
+/// Callers must supply funded token accounts they control. This type does not
+/// perform RPC mint/ATA validation — that remains an operator / cooker concern.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TokenDecoyRoute {
+    pub source: Pubkey,
+    pub destination: Pubkey,
+    pub mint: Pubkey,
+    pub decimals: u8,
+    pub program: TokenProgramKind,
+    pub min_amount: u64,
+    pub max_amount: u64,
+}
+
+impl TokenDecoyRoute {
+    pub fn try_new(
+        source: Pubkey,
+        destination: Pubkey,
+        mint: Pubkey,
+        decimals: u8,
+        program: TokenProgramKind,
+        min_amount: u64,
+        max_amount: u64,
+    ) -> Result<Self, InvalidTokenDecoyRoute> {
+        if max_amount == 0 {
+            return Err(InvalidTokenDecoyRoute::ZeroAmountBounds);
+        }
+        if min_amount == 0 || min_amount > max_amount {
+            return Err(InvalidTokenDecoyRoute::MinExceedsMax {
+                min_amount,
+                max_amount,
+            });
+        }
+        if source == destination {
+            return Err(InvalidTokenDecoyRoute::IdenticalSourceDestination { account: source });
+        }
+        Ok(Self {
+            source,
+            destination,
+            mint,
+            decimals,
+            program,
+            min_amount,
+            max_amount,
+        })
+    }
+
+    /// Build an SPL Token / Token-2022 `TransferChecked` instruction (index 12).
+    pub fn transfer_checked(&self, authority: &Pubkey, amount: u64) -> Instruction {
+        let mut data = Vec::with_capacity(10);
+        data.push(12); // TransferChecked
+        data.extend_from_slice(&amount.to_le_bytes());
+        data.push(self.decimals);
+        Instruction {
+            program_id: self.program.program_id(),
+            accounts: vec![
+                AccountMeta::new(self.source, false),
+                AccountMeta::new_readonly(self.mint, false),
+                AccountMeta::new(self.destination, false),
+                AccountMeta::new_readonly(*authority, true),
+            ],
+            data,
+        }
+    }
+}
+
+/// Generates statistical SPL Token / Token-2022 micro-transfers as organic DeFi-shaped decoys.
+pub struct TokenTransferNoise {
+    routes: Vec<TokenDecoyRoute>,
+}
+
+impl TokenTransferNoise {
+    pub fn from_routes(routes: Vec<TokenDecoyRoute>) -> Self {
+        Self { routes }
+    }
+
+    pub fn routes(&self) -> &[TokenDecoyRoute] {
+        &self.routes
+    }
+}
+
+impl DecoyGenerator for TokenTransferNoise {
+    fn generate_decoys(&self, payer: &Pubkey, level: ObfuscationLevel) -> Vec<Instruction> {
+        let mut rng = rand::thread_rng();
+        let count = match level {
+            ObfuscationLevel::Light => 1,
+            ObfuscationLevel::Standard => 2,
+            ObfuscationLevel::Paranoid => 4,
+        };
+
+        if self.routes.is_empty() {
+            return Vec::new();
+        }
+
+        let mut instructions = Vec::with_capacity(count);
+        for _ in 0..count {
+            let route = self.routes[rng.gen_range(0..self.routes.len())];
+            let amount = StatisticalTransferNoise::sample_benford_lamports(
+                &mut rng,
+                route.min_amount,
+                route.max_amount,
+            );
+            instructions.push(route.transfer_checked(payer, amount));
+        }
+        instructions
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -723,5 +889,94 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn token_route_builds_transfer_checked_for_spl_and_token2022() {
+        let source = Pubkey::new_unique();
+        let destination = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let authority = Pubkey::new_unique();
+
+        for program in [TokenProgramKind::SplToken, TokenProgramKind::Token2022] {
+            let route =
+                TokenDecoyRoute::try_new(source, destination, mint, 6, program, 1_000, 50_000)
+                    .unwrap();
+            let ix = route.transfer_checked(&authority, 12_345);
+            assert_eq!(ix.program_id, program.program_id());
+            assert_eq!(ix.data[0], 12);
+            assert_eq!(&ix.data[1..9], &12_345u64.to_le_bytes());
+            assert_eq!(ix.data[9], 6);
+            assert_eq!(ix.accounts[0].pubkey, source);
+            assert_eq!(ix.accounts[1].pubkey, mint);
+            assert_eq!(ix.accounts[2].pubkey, destination);
+            assert_eq!(ix.accounts[3].pubkey, authority);
+            assert!(ix.accounts[3].is_signer);
+        }
+    }
+
+    #[test]
+    fn token_transfer_noise_emits_level_counts() {
+        let route = TokenDecoyRoute::try_new(
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            6,
+            TokenProgramKind::SplToken,
+            1_000,
+            50_000,
+        )
+        .unwrap();
+        let noise = TokenTransferNoise::from_routes(vec![route]);
+        let payer = Pubkey::new_unique();
+        assert_eq!(
+            noise.generate_decoys(&payer, ObfuscationLevel::Light).len(),
+            1
+        );
+        assert_eq!(
+            noise
+                .generate_decoys(&payer, ObfuscationLevel::Standard)
+                .len(),
+            2
+        );
+        assert_eq!(
+            noise
+                .generate_decoys(&payer, ObfuscationLevel::Paranoid)
+                .len(),
+            4
+        );
+        assert!(noise
+            .generate_decoys(&payer, ObfuscationLevel::Light)
+            .iter()
+            .all(|ix| ix.program_id == TokenProgramKind::SplToken.program_id()));
+    }
+
+    #[test]
+    fn token_route_rejects_identical_accounts_and_bad_bounds() {
+        let account = Pubkey::new_unique();
+        assert!(matches!(
+            TokenDecoyRoute::try_new(
+                account,
+                account,
+                Pubkey::new_unique(),
+                6,
+                TokenProgramKind::Token2022,
+                1,
+                10
+            ),
+            Err(InvalidTokenDecoyRoute::IdenticalSourceDestination { .. })
+        ));
+        assert!(matches!(
+            TokenDecoyRoute::try_new(
+                Pubkey::new_unique(),
+                Pubkey::new_unique(),
+                Pubkey::new_unique(),
+                6,
+                TokenProgramKind::SplToken,
+                10,
+                5
+            ),
+            Err(InvalidTokenDecoyRoute::MinExceedsMax { .. })
+        ));
     }
 }

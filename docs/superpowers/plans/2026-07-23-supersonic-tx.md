@@ -17,7 +17,8 @@
 - Fail-soft decoys only; never fake Jupiter/DEX destinations; never transfer to executable program IDs; never broadcast `Signature::default()`.
 - Handoff JSON `schema_version = 1`: `secret_key_path` relative paths only — no embedded secrets in v1.
 - CLI: `--send` opt-in for broadcast; `campaign --isolate-intent` default **true**; default RPC `https://api.devnet.solana.com`.
-- Jito / ephemeral programs / SPL decoy graphs: out of scope for v1 done.
+- Jito / ephemeral programs: out of scope for v1 done.
+- SPL decoy graphs: v1 non-goal for full ops; post bar-C SDK routes landed (see README Roadmap).
 - Spec authority: `docs/superpowers/specs/2026-07-23-supersonic-tx-design.md`.
 - Exit bar C: `cargo test --workspace` + `anchor build` green; cooker + campaign + ALT + CI + documented deploy path.
 

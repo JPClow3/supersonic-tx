@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use solana_sdk::instruction::Instruction;
-use solana_sdk::pubkey::Pubkey;
 
 /// Security level determining decoy density and variance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -17,22 +16,6 @@ impl Default for ObfuscationLevel {
     fn default() -> Self {
         Self::Standard
     }
-}
-
-/// Represents a decoy instruction pattern designed to fool graph analytics.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DecoyKind {
-    /// Zero-op CPI call to the supersonic-tx program or recognized protocol program.
-    NoopCpi,
-    /// Real or simulated micro transfer following Benford's Law distribution.
-    StatisticalTransfer {
-        destination: Pubkey,
-        amount_lamports: u64,
-    },
-    /// Dynamic Compute Budget Unit padding instruction to equalize TX profiles.
-    ComputeBudgetPadding { units: u32 },
-    /// Benign Memo program instruction matching typical dApp interaction signatures.
-    ProtocolMemo { memo: String },
 }
 
 /// Manifest encapsulating real instructions alongside interleaved decoys.
@@ -92,6 +75,27 @@ pub enum SupersonicError {
     #[error("Transaction simulation failed: {0}")]
     SimulationFailed(String),
 
+    /// Recent blockhash expired or was never seen by the cluster.
+    #[error("RPC blockhash not found")]
+    RpcBlockhashNotFound,
+
+    /// Fee payer cannot cover the transaction fee.
+    #[error("RPC insufficient funds for fee")]
+    RpcInsufficientFundsForFee,
+
+    /// Cluster already processed this signature (often safe to treat as success).
+    #[error("RPC transaction already processed")]
+    RpcAlreadyProcessed,
+
+    /// Account lock contention / in-flight parallelism conflict.
+    #[error("RPC account in use")]
+    RpcAccountInUse,
+
+    /// Transport, HTTP, or other transient network-layer RPC failure.
+    #[error("RPC transport error: {0}")]
+    RpcTransport(String),
+
+    /// Unclassified RPC / client failure (string retained for diagnostics).
     #[error("RPC request failed: {0}")]
     RpcError(String),
 
@@ -103,4 +107,47 @@ pub enum SupersonicError {
 
     #[error("Invalid campaign plan: {0}")]
     InvalidCampaign(String),
+}
+
+impl SupersonicError {
+    /// Errors where refreshing the blockhash and resubmitting may succeed.
+    pub fn is_transient_rpc(&self) -> bool {
+        matches!(
+            self,
+            Self::RpcBlockhashNotFound | Self::RpcAccountInUse | Self::RpcTransport(_)
+        )
+    }
+
+    /// Map a Solana `TransactionError` into a typed RPC variant when possible.
+    pub fn from_transaction_error(error: &solana_sdk::transaction::TransactionError) -> Self {
+        use solana_sdk::transaction::TransactionError as TxErr;
+        match error {
+            TxErr::BlockhashNotFound => Self::RpcBlockhashNotFound,
+            TxErr::InsufficientFundsForFee => Self::RpcInsufficientFundsForFee,
+            TxErr::AlreadyProcessed => Self::RpcAlreadyProcessed,
+            TxErr::AccountInUse => Self::RpcAccountInUse,
+            other => Self::RpcError(other.to_string()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+    use solana_sdk::transaction::TransactionError;
+
+    #[test]
+    fn classifies_blockhash_and_funds_variants() {
+        assert!(matches!(
+            SupersonicError::from_transaction_error(&TransactionError::BlockhashNotFound),
+            SupersonicError::RpcBlockhashNotFound
+        ));
+        assert!(matches!(
+            SupersonicError::from_transaction_error(&TransactionError::InsufficientFundsForFee),
+            SupersonicError::RpcInsufficientFundsForFee
+        ));
+        assert!(SupersonicError::RpcBlockhashNotFound.is_transient_rpc());
+        assert!(!SupersonicError::RpcInsufficientFundsForFee.is_transient_rpc());
+        assert!(!SupersonicError::RpcAlreadyProcessed.is_transient_rpc());
+    }
 }

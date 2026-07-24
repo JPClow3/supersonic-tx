@@ -19,7 +19,7 @@ It is **not** a mixer, tumbler, shielded pool, or ZK privacy system. Threat mode
 | Field | Value |
 | --- | --- |
 | Repository | https://github.com/JPClow3/supersonic-tx |
-| Branch (judge entry) | `feature/bar-c` |
+| Branch (judge entry) | `feature/bar-c` (frozen pin; active development continues on `main`) |
 | Release tag | [`v0.1.0-bar-c`](https://github.com/JPClow3/supersonic-tx/releases/tag/v0.1.0-bar-c) |
 | Tag commit (peel) | identical to tag v0.1.0-bar-c tip (git rev-parse v0.1.0-bar-c^{}) |
 | License | MIT |
@@ -42,10 +42,10 @@ It is **not** a mixer, tumbler, shielded pool, or ZK privacy system. Threat mode
 | Evidence | Link / note |
 | --- | --- |
 | Green CI (workspace `rust` + dual-lock `sbf`) | https://github.com/JPClow3/supersonic-tx/actions/runs/30061536023 |
-| Tests | `cargo test --workspace --locked` (+ standalone router crate tests). Reference Docker suite: **56** executable tests (50 workspace + 6 router). |
+| Tests | `cargo test --workspace --locked` (+ standalone router crate tests under `solana-program-test`). Reference Docker suite at bar-C pin: **56** executable tests (50 workspace + 6 router). Working-tree tip (this audit): **63** workspace + **7** router = **70** (typed-RPC / token-decoy / genesis-hash / CPI-failure coverage). Re-count when refreshing the Earn pin. |
 | Localnet smoke | **PASS** 2026-07-24 — Docker validator, deploy program, `cook` → `cast --via-router --send`. Details: [docs/smoke.md](smoke.md). |
 | Reference cast signature (localnet) | `39iuxT1gGq2jsRzUwtb5441ME6aebnTuXhSzrd3yfFvttpGW5LBqGKnbsxbu7FvaTJh3ztek5EWjFw7cQqG7tpdE` — simulation OK, **484/1232** bytes, **6** decoys. |
-| Devnet | **Not deployed** — needs funded deployer (public faucet may 429). Same program ID reserved; reproducible via Docker localnet per [docs/deploy.md](deploy.md). No invented explorer URLs. |
+| Devnet | **Deployed** 2026-07-24 on tip `852856d` — program + cook/cast/campaign confirmed. Explorer: https://explorer.solana.com/address/GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9?cluster=devnet. Ledger: [docs/results/RUNS.md](results/RUNS.md). (Earn pin `v0.1.0-bar-c` predates this; cite tip/`main` if claiming live proof.) |
 
 Judge path (60s): clone → checkout `v0.1.0-bar-c` → Docker `cargo test --workspace --locked` (see README). Full smoke: [docs/smoke.md](smoke.md).
 
@@ -101,10 +101,12 @@ Localnet cast: `39iuxT1gGq2jsRzUwtb5441ME6aebnTuXhSzrd3yfFvttpGW5LBqGKnbsxbu7Fva
 
 - [ ] Brazil eligibility confirmed by operator
 - [x] Tag `v0.1.0-bar-c` retagged onto tip (Phase D) so judges opening the tag see Earn draft + Phase B smoke
-- [ ] Devnet optional: only if funded deployer — then add Solscan/explorer links to README Deployments **and** this draft
+- [x] Devnet: program + cook/cast/campaign PASS 2026-07-24 — README Deployments + [results/RUNS.md](results/RUNS.md); Earn pin predates live proof (cite `main`/tip if claiming it)
 - [x] Re-read bounty “great contribution” criteria once against this text (Rust E2E, tested/deployable, realistic noise, docs, MIT, cooker composability)
 - [x] No secrets / keypairs in repo or form attachments (operator keypaths gitignored under `.tmp-operator-sim/`)
 - [x] README Verification CI URL matches the run cited here (`30061536023`)
+- [ ] Commit uncommitted tip work (typed RPC, token routes, genesis-hash fix, docs) before claiming live `main` proof
+- [ ] Local `main` history was rewritten to drop junk commit messages (`jkj`, `main commit`) that are still visible on `origin/main`; pushing requires a force-push — **operator must explicitly confirm before force-pushing**
 
 ---
 
