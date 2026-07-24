@@ -21,7 +21,8 @@ It is **not** a mixer, tumbler, shielded pool, or ZK privacy system. Threat mode
 | Repository | https://github.com/JPClow3/supersonic-tx |
 | Branch (judge entry) | `feature/bar-c` |
 | Release tag | [`v0.1.0-bar-c`](https://github.com/JPClow3/supersonic-tx/releases/tag/v0.1.0-bar-c) |
-| Commit | `accfa03a6236e1d987f41eba1668f2a3aad06494` |
+| Tag commit (peel) | `accfa03a6236e1d987f41eba1668f2a3aad06494` |
+| Docs tip | `feature/bar-c` may be 1+ commits ahead of the tag (includes this Earn draft). Retag or merge before submit if judges should open the exact tip. |
 | License | MIT |
 
 ### Which tool (bounty scope)
@@ -98,7 +99,8 @@ CI: https://github.com/JPClow3/supersonic-tx/actions/runs/30060669604
 ## Checklist before paste-submit
 
 - [ ] Brazil eligibility confirmed by operator
-- [ ] Tag/commit still match remote tip you intend judges to open
+- [ ] Tag/commit still match remote tip you intend judges to open (retag `v0.1.0-bar-c` onto tip if Earn draft should be under the tag)
 - [ ] If Phase B lands: add devnet deploy + smoke sigs + Solscan/explorer links to README Deployments **and** update this draft
 - [ ] Re-read bounty “great contribution” criteria once against this text
 - [ ] No secrets / keypairs in repo or form attachments
+- [ ] README Verification CI URL matches the run you cite here (`30060669604`); older run `30060436719` is also green but not the tip
