@@ -76,7 +76,9 @@ pub async fn simulate_and_send(
     if !options.broadcast {
         return Ok(None);
     }
-    rpc.send_transaction(transaction)
+    // Confirm before returning so multi-tx campaigns and post-send drains observe
+    // finalized balances instead of racing in-flight spends.
+    rpc.send_and_confirm_transaction(transaction)
         .await
         .map(Some)
         .map_err(|error| SupersonicError::RpcError(error.to_string()))

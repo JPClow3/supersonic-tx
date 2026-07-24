@@ -164,6 +164,7 @@ struct LoadedAccounts {
 
 async fn load_accounts(
     rpc: &RpcClient,
+    rpc_url: &str,
     keypair_path: Option<&Path>,
     handoff_path: Option<&Path>,
     tips: &[String],
@@ -174,7 +175,7 @@ async fn load_accounts(
 
     let (payer, mut sinks, loaded_handoff) = if let Some(path) = handoff_path {
         let handoff = Cooker::load_handoff(path)?;
-        verify_rpc_cluster(rpc, &handoff.cluster, "").await?;
+        verify_rpc_cluster(rpc, &handoff.cluster, rpc_url).await?;
         Cooker::assert_funded_for_cast(&handoff, CONSERVATIVE_FEE_AND_DECOY_BUDGET)?;
         let directory = path.parent().unwrap_or_else(|| Path::new("."));
         let keypairs = Cooker::resolve_keypairs(&handoff, directory)?;
@@ -219,25 +220,26 @@ async fn load_accounts(
     })
 }
 
+fn cluster_matches_genesis(declared_cluster: &str, genesis: &str, rpc_url: &str) -> bool {
+    match declared_cluster {
+        "devnet" => genesis == DEVNET_GENESIS_HASH,
+        "mainnet-beta" => genesis == MAINNET_GENESIS_HASH,
+        "localnet" => {
+            genesis != DEVNET_GENESIS_HASH
+                && genesis != MAINNET_GENESIS_HASH
+                && (rpc_url.contains("localhost") || rpc_url.contains("127.0.0.1"))
+        }
+        _ => false,
+    }
+}
+
 async fn verify_rpc_cluster(
     rpc: &RpcClient,
     declared_cluster: &str,
     rpc_url: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let genesis = rpc.get_genesis_hash().await?.to_string();
-    let matches = match declared_cluster {
-        "devnet" => genesis == DEVNET_GENESIS_HASH,
-        "mainnet-beta" => genesis == MAINNET_GENESIS_HASH,
-        "localnet" => {
-            genesis != DEVNET_GENESIS_HASH
-                && genesis != MAINNET_GENESIS_HASH
-                && (rpc_url.is_empty()
-                    || rpc_url.contains("localhost")
-                    || rpc_url.contains("127.0.0.1"))
-        }
-        _ => false,
-    };
-    if !matches {
+    if !cluster_matches_genesis(declared_cluster, &genesis, rpc_url) {
         return Err(format!(
             "RPC genesis hash {genesis} does not match declared cluster {declared_cluster}"
         )
@@ -420,8 +422,9 @@ async fn run_cast(
     via_router: bool,
     send: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let rpc = RpcClient::new(rpc_url);
-    let accounts = load_accounts(&rpc, keypair.as_deref(), handoff.as_deref(), &tips).await?;
+    let rpc = RpcClient::new(rpc_url.clone());
+    let accounts =
+        load_accounts(&rpc, &rpc_url, keypair.as_deref(), handoff.as_deref(), &tips).await?;
     let built = build_signed(
         &rpc,
         &accounts,
@@ -573,9 +576,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if drain_to.is_some() && !send {
                 return Err("--drain-to requires --send".into());
             }
-            let rpc = RpcClient::new(rpc_url);
-            let accounts =
-                load_accounts(&rpc, keypair.as_deref(), handoff.as_deref(), &tip).await?;
+            let rpc = RpcClient::new(rpc_url.clone());
+            let accounts = load_accounts(
+                &rpc,
+                &rpc_url,
+                keypair.as_deref(),
+                handoff.as_deref(),
+                &tip,
+            )
+            .await?;
             let payer = accounts.payer.pubkey();
             let plan = CampaignPlanner::new(payer, level.into())
                 .with_sinks(accounts.sinks.clone())
@@ -587,36 +596,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     amount,
                 )])?;
             let tables = resolve_alt(&rpc, alt.as_deref()).await?;
-            let blockhash: Hash = rpc.get_latest_blockhash().await?;
-            let mut prepared = Vec::with_capacity(plan.txs.len());
-            for planned in plan.txs {
-                let fallback_manifest = planned.manifest.clone();
+            // Estimate spend/fees once so decoys cannot breach the real-intent reserve.
+            let estimate_hash = rpc.get_latest_blockhash().await?;
+            let mut estimated = Vec::with_capacity(plan.txs.len());
+            for planned in &plan.txs {
                 let built = FuzzyBundleBuilder::build_manifest_bundle(
                     payer,
-                    planned.manifest,
+                    planned.manifest.clone(),
+                    estimate_hash,
+                    &tables,
+                )?;
+                let instructions = FuzzyBundleBuilder::assemble_instructions(&built.manifest);
+                let spend = transfer_spend(&instructions, &payer);
+                let fee = message_fee(&rpc, &built.message).await?;
+                estimated.push((planned.kind, planned.manifest.clone(), spend, fee));
+            }
+            let real_reserve = estimated
+                .iter()
+                .find(|(kind, _, _, _)| *kind == PlannedTxKind::RealIntent)
+                .map(|(_, _, spend, fee)| spend.saturating_add(*fee))
+                .ok_or("campaign plan has no real intent")?;
+
+            let mut real_intent_confirmed = false;
+            for (kind, manifest, _, _) in estimated {
+                // Recompile/sign with a fresh blockhash immediately before each send.
+                let blockhash = rpc.get_latest_blockhash().await?;
+                let mut built = FuzzyBundleBuilder::build_manifest_bundle(
+                    payer,
+                    manifest.clone(),
                     blockhash,
                     &tables,
                 )?;
                 let instructions = FuzzyBundleBuilder::assemble_instructions(&built.manifest);
                 let spend = transfer_spend(&instructions, &payer);
                 let fee = message_fee(&rpc, &built.message).await?;
-                let transaction = sign_versioned_tx(built.message, &[&accounts.payer])?;
-                prepared.push((
-                    planned.kind,
-                    transaction,
-                    built.serialized_size,
-                    spend,
-                    fee,
-                    fallback_manifest,
-                ));
-            }
-            let real_reserve = prepared
-                .iter()
-                .find(|(kind, _, _, _, _, _)| *kind == PlannedTxKind::RealIntent)
-                .map(|(_, _, _, spend, fee, _)| spend.saturating_add(*fee))
-                .ok_or("campaign plan has no real intent")?;
-
-            for (kind, transaction, mut size, spend, fee, fallback_manifest) in prepared {
                 let balance = rpc.get_balance(&payer).await?;
                 let required = if kind == PlannedTxKind::RealIntent {
                     real_reserve
@@ -635,18 +648,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     return Err(Box::new(SupersonicError::Underfunded { balance, required })
                         as Box<dyn std::error::Error>);
                 }
+                let mut size = built.serialized_size;
+                let mut transaction = sign_versioned_tx(built.message, &[&accounts.payer])?;
                 let mut result =
                     simulate_and_send(&rpc, &transaction, SendOptions { broadcast: send }).await;
                 if result.is_err() && !tables.is_empty() {
                     eprintln!("ALT campaign transaction failed; retrying without ALT");
-                    let fallback = FuzzyBundleBuilder::build_manifest_bundle(
+                    built = FuzzyBundleBuilder::build_manifest_bundle(
                         payer,
-                        fallback_manifest,
+                        manifest,
                         rpc.get_latest_blockhash().await?,
                         &[],
                     )?;
-                    size = fallback.serialized_size;
-                    let transaction = sign_versioned_tx(fallback.message, &[&accounts.payer])?;
+                    size = built.serialized_size;
+                    transaction = sign_versioned_tx(built.message, &[&accounts.payer])?;
                     result = simulate_and_send(&rpc, &transaction, SendOptions { broadcast: send })
                         .await;
                 }
@@ -655,6 +670,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         return Err(Box::new(error) as Box<dyn std::error::Error>)
                     }
                     (_, Err(error)) => eprintln!("Best-effort decoy transaction failed: {error}"),
+                    (PlannedTxKind::RealIntent, Ok(signature)) => {
+                        if send {
+                            real_intent_confirmed = true;
+                        }
+                        println!(
+                            "{:?}: simulation succeeded, {size}/{MAX_TX_PAYLOAD_BYTES} bytes ({signature:?})",
+                            PlannedTxKind::RealIntent
+                        );
+                    }
                     (kind, Ok(signature)) => {
                         println!(
                             "{kind:?}: simulation succeeded, {size}/{MAX_TX_PAYLOAD_BYTES} bytes ({signature:?})"
@@ -663,6 +687,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             if let Some(destination) = drain_to {
+                if !real_intent_confirmed {
+                    return Err(
+                        "--drain-to requires a confirmed real-intent broadcast".into(),
+                    );
+                }
                 let (handoff, directory) = accounts
                     .handoff
                     .as_ref()
@@ -750,6 +779,32 @@ mod tests {
     fn campaign_skips_decoy_at_real_intent_reserve_boundary() {
         assert!(!decoy_preserves_reserve(110, 100, 10, 1));
         assert!(decoy_preserves_reserve(111, 100, 10, 1));
+    }
+
+    #[test]
+    fn localnet_cluster_requires_loopback_rpc_url() {
+        let local_genesis = "LocalNetGenesisHash1111111111111111111";
+        assert!(!cluster_matches_genesis("localnet", local_genesis, ""));
+        assert!(!cluster_matches_genesis(
+            "localnet",
+            local_genesis,
+            "https://api.testnet.solana.com"
+        ));
+        assert!(cluster_matches_genesis(
+            "localnet",
+            local_genesis,
+            "http://127.0.0.1:8899"
+        ));
+        assert!(cluster_matches_genesis(
+            "localnet",
+            local_genesis,
+            "http://localhost:8899"
+        ));
+        assert!(!cluster_matches_genesis(
+            "localnet",
+            DEVNET_GENESIS_HASH,
+            "http://127.0.0.1:8899"
+        ));
     }
 
     #[test]

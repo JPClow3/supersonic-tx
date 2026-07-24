@@ -152,7 +152,8 @@ Closeout evidence: `.superpowers/sdd/briefs/bar-c-closeout-2026-07-23.md`.
 
 - `simulate` and default `cast`/`campaign` sign a V0 tx and call `simulateTransaction`.
 - `--send` (or `campaign --send`) broadcasts only after successful simulation and non-default
-  signatures.
+  signatures, then waits for confirmation before returning.
+- Campaign `--drain-to` runs only after a confirmed real-intent broadcast.
 - `--alt` fetches the real lookup-table account; failure falls back to non-ALT V0 + MTU shrink.
 - `--via-router` is off by default; enables CPI wrapper only after executable-program check.
 - Sinks must be non-executable, system-owned accounts (provenance via `TrustedSystemAccount`).
