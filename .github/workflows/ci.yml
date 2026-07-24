@@ -15,15 +15,22 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo test --workspace --locked
 
-  anchor:
+  # Full-workspace `anchor build` is not the supported path under Anchor 0.30.1
+  # (edition2024 / lock drift). SBF + IDL use the dual-lock script + backpack image.
+  sbf:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install Solana 1.18.26
+      - name: Build SBF .so + IDL (dual-lock)
         run: |
-          sh -c "$(curl -sSfL https://release.anza.xyz/v1.18.26/install)"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
-      - name: Install Anchor 0.30.1
-        run: cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
-      - run: anchor build
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -v "$RUNNER_TEMP/supersonic-target:/workspace-target" \
+            -w /workspace \
+            -e CARGO_TARGET_DIR=/workspace-target \
+            backpackapp/build:v0.30.1 \
+            bash .superpowers/sdd/briefs/bar-c-build-sbf-only.sh
+      - name: Assert deploy artifact
+        run: |
+          test -f "$RUNNER_TEMP/supersonic-target/deploy/supersonic_tx.so"
+          ls -la "$RUNNER_TEMP/supersonic-target/deploy/supersonic_tx.so"
