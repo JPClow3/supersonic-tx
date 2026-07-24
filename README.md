@@ -67,7 +67,12 @@ the real intent; use isolated campaign mode when that risk is unacceptable.
 
 ## Deployments
 
-None recorded. Operator steps: [docs/deploy.md](docs/deploy.md).
+| Cluster | Program ID | Recorded (UTC) | Notes |
+| --- | --- | --- | --- |
+| localnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-23 | Smoke-validated via Docker `solana-test-validator` + `supersonic-tx cook` -> `cast --via-router --send`. Genesis hash is ephemeral per validator reset. |
+| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | — | **Pending:** deployer needs funded wallet (public faucet returned HTTP 429 at closeout). |
+
+Operator steps: [docs/deploy.md](docs/deploy.md).
 
 ## Verification
 
