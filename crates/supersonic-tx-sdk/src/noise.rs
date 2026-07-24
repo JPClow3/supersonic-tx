@@ -51,6 +51,7 @@ pub enum InvalidDecoySink {
     DeniedProgram { destination: Pubkey },
     NotAllowlisted { destination: Pubkey },
     InvalidCookedRole,
+    MissingCookedSecretPath,
     InvalidCookedPubkey { value: String },
     RpcValidation { destination: Pubkey, reason: String },
     NotSystemWallet { destination: Pubkey },
@@ -71,6 +72,12 @@ impl fmt::Display for InvalidDecoySink {
             }
             Self::InvalidCookedRole => {
                 write!(f, "cooked account role must be DecoySink")
+            }
+            Self::MissingCookedSecretPath => {
+                write!(
+                    f,
+                    "cooked DecoySink must include a relative secret_key_path under the cook directory"
+                )
             }
             Self::InvalidCookedPubkey { value } => {
                 write!(f, "cooked DecoySink has an invalid pubkey: {value}")
@@ -202,6 +209,9 @@ impl TrustedSystemAccount {
             CookedRole::FeePayer | CookedRole::DrainTarget => {
                 return Err(InvalidDecoySink::InvalidCookedRole);
             }
+        }
+        if account.secret_key_path.is_none() {
+            return Err(InvalidDecoySink::MissingCookedSecretPath);
         }
 
         let destination = Pubkey::from_str(&account.pubkey).map_err(|_| {
@@ -666,12 +676,27 @@ mod tests {
         let account = CookedAccount {
             role: CookedRole::DecoySink,
             pubkey: Pubkey::new_unique().to_string(),
-            secret_key_path: None,
+            secret_key_path: Some("keys/sink_0.json".into()),
             funded_lamports: 50_000,
             min_required_lamports: 1_000,
         };
         let trusted = TrustedSystemAccount::from_cooker_decoy_sink(&account).unwrap();
         assert_eq!(trusted.0, Pubkey::from_str(&account.pubkey).unwrap());
+    }
+
+    #[test]
+    fn cooker_decoy_sink_requires_secret_key_path() {
+        let account = CookedAccount {
+            role: CookedRole::DecoySink,
+            pubkey: Pubkey::new_unique().to_string(),
+            secret_key_path: None,
+            funded_lamports: 50_000,
+            min_required_lamports: 1_000,
+        };
+        assert!(matches!(
+            TrustedSystemAccount::from_cooker_decoy_sink(&account),
+            Err(InvalidDecoySink::MissingCookedSecretPath)
+        ));
     }
 
     #[test]
