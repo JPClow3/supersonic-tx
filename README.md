@@ -2,12 +2,12 @@
 
 **Rust toolkit that wraps a real Solana transfer in realistic decoy noise** (Benford amounts,
 fail-soft CU/memo, cooker-funded sinks, optional shared Anchor router) for algotraders,
-whales, and agents who want behavioral obscurity ù **not** a mixer, anonymity set, shielded
+whales, and agents who want behavioral obscurity ‚Äî **not** a mixer, anonymity set, shielded
 pool, or ZK system.
 
 **Judge entrypoint:** branch [`feature/bar-c`](https://github.com/JPClow3/supersonic-tx/tree/feature/bar-c)
-(repo default) ù tag [`v0.1.0-bar-c`](https://github.com/JPClow3/supersonic-tx/releases/tag/v0.1.0-bar-c)
-ù MIT [`LICENSE-MIT`](LICENSE-MIT).
+(repo default) ‚Äî tag [`v0.1.0-bar-c`](https://github.com/JPClow3/supersonic-tx/releases/tag/v0.1.0-bar-c)
+‚Äî MIT [`LICENSE-MIT`](LICENSE-MIT).
 
 | Quick links | |
 | --- | --- |
@@ -49,7 +49,7 @@ docker run --rm -v "$PWD:/workspace" \
 
 ---
 
-## Demo: cook ? cast (localnet)
+## Demo: cook ‚Üí cast (localnet)
 
 Requires a running local validator + deployed program
 `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` ([docs/deploy.md](docs/deploy.md),
@@ -85,7 +85,7 @@ Levels: `light` | `standard` | `paranoid`. Campaign isolation: `campaign --isola
 | ComputeBudget | Fail-soft CU limit / price padding |
 | Memo | Noise memos |
 | Anchor router `noop_decoy` | Shared-program-id zero-op (`--via-router` path also offers `execute_fuzzy_bundle` CPI wrapper) |
-| MTU shrink | Drop decoys in order until ?1232 bytes; **never** drop the real intent |
+| MTU shrink | Drop decoys in order until ‚â§1232 bytes; **never** drop the real intent |
 
 Without RPC-validated sinks, the builder falls back to CU/memo/router-only (`without_transfer_noise`).
 
@@ -95,8 +95,8 @@ Without RPC-validated sinks, the builder falls back to CU/memo/router-only (`wit
 
 | Cluster | Program ID | Recorded (UTC) | Notes |
 | --- | --- | --- | --- |
-| localnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-23 | Smoke **PASS** ù Docker validator + `cook` ? `cast --via-router --send`. Genesis hash ephemeral per `--reset`. |
-| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | ù | Not deployed yet ù needs funded deployer wallet (public faucet may 429). |
+| localnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-23 | Smoke **PASS** ‚Äî Docker validator + `cook` ? `cast --via-router --send`. Genesis hash ephemeral per `--reset`. |
+| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | ‚Äî | Not deployed yet ‚Äî needs funded deployer wallet (public faucet may 429). |
 
 ---
 
@@ -115,25 +115,25 @@ Without RPC-validated sinks, the builder falls back to CU/memo/router-only (`wit
 
 | Check | Evidence |
 | --- | --- |
-| Workspace tests | `cargo test --workspace --locked` ù GitHub Actions **rust** job ([workflow](.github/workflows/ci.yml)) |
+| Workspace tests | `cargo test --workspace --locked` ‚Äî GitHub Actions **rust** job ([workflow](.github/workflows/ci.yml)) |
 | SBF `.so` + IDL | Dual-lock script in Actions **sbf** job (`backpackapp/build:v0.30.1`) |
-| Localnet smoke | [docs/smoke.md](docs/smoke.md) ù deploy + cast signatures recorded 2026-07-23 |
-| Green CI run | *(updated after push ù see Actions for `feature/bar-c` / tag `v0.1.0-bar-c`)* |
+| Localnet smoke | [docs/smoke.md](docs/smoke.md) ‚Äî deploy + cast signatures recorded 2026-07-23 |
+| Green CI run | [Actions run 30060436719](https://github.com/JPClow3/supersonic-tx/actions/runs/30060436719) ‚Äî workspace `rust` + dual-lock `sbf` green |
 
 ---
 
 ## Threat model
 
-Obscurity against **automated** graph/shape heuristics ù not cryptographic privacy.
+Obscurity against **automated** graph/shape heuristics ‚Äî not cryptographic privacy.
 
 | Adversary / signal | Effect of this toolkit |
 | --- | --- |
-| Naive wallet-graph clustering | Partial ù cooked sinks / tips add edges |
-| Simple CU / shape heuristics | Partial ù CU/memo/router padding |
-| Single-obvious-instruction filters | Partial ù interleaved decoys in same tx |
-| Mempool / copy-trade bots | Weak ù timing and unique ix data remain |
+| Naive wallet-graph clustering | Partial ‚Äî cooked sinks / tips add edges |
+| Simple CU / shape heuristics | Partial ‚Äî CU/memo/router padding |
+| Single-obvious-instruction filters | Partial ‚Äî interleaved decoys in same tx |
+| Mempool / copy-trade bots | Weak ‚Äî timing and unique ix data remain |
 | Analyst who knows `PROGRAM_ID` | Filters on router easily |
-| Sponsor ? cooker funding trace | **Unaffected** (always visible) |
+| Sponsor ‚Üí cooker funding trace | **Unaffected** (always visible) |
 | Timing across campaign txs | **Unaffected** |
 | CEX / KYC / human review | **Unaffected** |
 | Unique target instruction data | **Unaffected** |
@@ -381,8 +381,8 @@ Never commit cooked keys, sponsor keys, or `target/deploy/*-keypair.json`.
 
 ## Further reading
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) ó sinks, campaign isolation, dual-lock detail
-- [docs/deploy.md](docs/deploy.md) ó localnet / devnet operator steps
-- [docs/smoke.md](docs/smoke.md) ó post-deploy checklist + reference signatures
+- [ARCHITECTURE.md](ARCHITECTURE.md) ‚Äî sinks, campaign isolation, dual-lock detail
+- [docs/deploy.md](docs/deploy.md) ‚Äî localnet / devnet operator steps
+- [docs/smoke.md](docs/smoke.md) ‚Äî post-deploy checklist + reference signatures
 
 Cluster status: see **Deployments** above. Licensed under [MIT](LICENSE-MIT).
