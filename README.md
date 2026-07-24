@@ -1,16 +1,148 @@
 # supersonic-tx
 
-Rust workspace for **behavioral obscurity** on Solana: interleave a real instruction with
-fail-soft compute-budget, memo, RPC-validated transfer sinks, and optional shared-router
-noise. Not a mixer, anonymity set, shielded pool, or ZK system.
+**Rust toolkit that wraps a real Solana transfer in realistic decoy noise** (Benford amounts,
+fail-soft CU/memo, cooker-funded sinks, optional shared Anchor router) for algotraders,
+whales, and agents who want behavioral obscurity  **not** a mixer, anonymity set, shielded
+pool, or ZK system.
 
-| Spec / evidence | Path |
+**Judge entrypoint:** branch [`feature/bar-c`](https://github.com/JPClow3/supersonic-tx/tree/feature/bar-c)
+(repo default)  tag [`v0.1.0-bar-c`](https://github.com/JPClow3/supersonic-tx/releases/tag/v0.1.0-bar-c)
+ MIT [`LICENSE-MIT`](LICENSE-MIT).
+
+| Quick links | |
 | --- | --- |
-| Design | [docs/superpowers/specs/2026-07-23-supersonic-tx-design.md](docs/superpowers/specs/2026-07-23-supersonic-tx-design.md) |
 | Architecture | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Deploy | [docs/deploy.md](docs/deploy.md) |
-| Smoke | [docs/smoke.md](docs/smoke.md) |
-| Bar-C closeout | [.superpowers/sdd/briefs/bar-c-closeout-2026-07-23.md](.superpowers/sdd/briefs/bar-c-closeout-2026-07-23.md) |
+| Smoke + sigs | [docs/smoke.md](docs/smoke.md) |
+| Design | [docs/superpowers/specs/2026-07-23-supersonic-tx-design.md](docs/superpowers/specs/2026-07-23-supersonic-tx-design.md) |
+
+---
+
+## 60-second install
+
+Toolchain: Solana ~1.18, Anchor 0.30.1, Rust stable. Prefer **Linux Docker** (native Windows
+Cargo may hit WDAC 4551 on build scripts).
+
+```bash
+git clone https://github.com/JPClow3/supersonic-tx.git
+cd supersonic-tx
+git checkout v0.1.0-bar-c
+
+# Format + workspace tests (CI mirrors this)
+docker run --rm -v "$PWD:/workspace" -w /workspace rust:latest \
+  bash -c 'rustup component add rustfmt && cargo fmt --all -- --check && cargo test --workspace --locked'
+
+# CLI binary
+cargo build --release -p supersonic-tx-cli --locked
+# -> target/release/supersonic-tx
+```
+
+SBF `.so` + IDL (dual-lock; not full-workspace `anchor build`):
+
+```bash
+docker run --rm -v "$PWD:/workspace" \
+  -v supersonic-target:/workspace-target \
+  -w /workspace -e CARGO_TARGET_DIR=/workspace-target \
+  backpackapp/build:v0.30.1 \
+  bash .superpowers/sdd/briefs/bar-c-build-sbf-only.sh
+```
+
+---
+
+## Demo: cook ? cast (localnet)
+
+Requires a running local validator + deployed program
+`GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` ([docs/deploy.md](docs/deploy.md),
+[docs/smoke.md](docs/smoke.md)).
+
+```bash
+export RPC=http://127.0.0.1:8899
+export DEPLOYER=/path/to/deployer.json   # never commit
+
+supersonic-tx cook --sponsor-keypair "$DEPLOYER" --out-dir /tmp/cooked \
+  --rpc-url "$RPC" --cluster localnet
+
+supersonic-tx cast --handoff /tmp/cooked/handoff-*.json \
+  --target So11111111111111111111111111111111111111112 --amount 100000 \
+  --rpc-url "$RPC" --via-router --send
+```
+
+**Expected shape:** simulation OK, payload under **1232** bytes (reference run: **484/1232**),
+several decoys interleaved (reference: **6**), confirmed signature printed. Reference cast:
+`3bx8PvSJBCqksKurDXGkhepumDotj5DfXj68XZeLuxL9ottieDJqGn2DDZoCa1WcjMh8wwSZsSfm9mMWKGFYLW7s`.
+
+Levels: `light` | `standard` | `paranoid`. Campaign isolation: `campaign --isolate-intent true`
+(default) keeps statistical transfers out of the real-intent tx. Opt-in router CPI:
+`--via-router` on `simulate`/`cast`.
+
+---
+
+## Decoy kinds
+
+| Kind | What it does |
+| --- | --- |
+| Statistical SOL transfers | Benford-ish amounts to cooker `DecoySink` accounts (TrustedSystemAccount + secret path) or allowlisted `--tip` |
+| ComputeBudget | Fail-soft CU limit / price padding |
+| Memo | Noise memos |
+| Anchor router `noop_decoy` | Shared-program-id zero-op (`--via-router` path also offers `execute_fuzzy_bundle` CPI wrapper) |
+| MTU shrink | Drop decoys in order until ?1232 bytes; **never** drop the real intent |
+
+Without RPC-validated sinks, the builder falls back to CU/memo/router-only (`without_transfer_noise`).
+
+---
+
+## Deployments
+
+| Cluster | Program ID | Recorded (UTC) | Notes |
+| --- | --- | --- | --- |
+| localnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-23 | Smoke **PASS**  Docker validator + `cook` ? `cast --via-router --send`. Genesis hash ephemeral per `--reset`. |
+| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` |  | Not deployed yet  needs funded deployer wallet (public faucet may 429). |
+
+---
+
+## What this is / is not
+
+| Claims | Non-claims |
+| --- | --- |
+| Rust E2E: cooker + CLI/SDK + Anchor router | Not a mixer / tumbler |
+| Realistic noise (Benford, fail-soft sinks, MTU shrink, campaign isolate) | Not ZK / shielded / unlinkable funding |
+| Composable `account-cooker` schema-v1 handoff | Not mainnet-ready ops by default |
+| Shared router grows anonymity-set *fingerprint* with `PROGRAM_ID` | Not immune to analysts who know the program ID |
+
+---
+
+## Verification
+
+| Check | Evidence |
+| --- | --- |
+| Workspace tests | `cargo test --workspace --locked`  GitHub Actions **rust** job ([workflow](.github/workflows/ci.yml)) |
+| SBF `.so` + IDL | Dual-lock script in Actions **sbf** job (`backpackapp/build:v0.30.1`) |
+| Localnet smoke | [docs/smoke.md](docs/smoke.md)  deploy + cast signatures recorded 2026-07-23 |
+| Green CI run | *(updated after push  see Actions for `feature/bar-c` / tag `v0.1.0-bar-c`)* |
+
+---
+
+## Threat model
+
+Obscurity against **automated** graph/shape heuristics  not cryptographic privacy.
+
+| Adversary / signal | Effect of this toolkit |
+| --- | --- |
+| Naive wallet-graph clustering | Partial  cooked sinks / tips add edges |
+| Simple CU / shape heuristics | Partial  CU/memo/router padding |
+| Single-obvious-instruction filters | Partial  interleaved decoys in same tx |
+| Mempool / copy-trade bots | Weak  timing and unique ix data remain |
+| Analyst who knows `PROGRAM_ID` | Filters on router easily |
+| Sponsor ? cooker funding trace | **Unaffected** (always visible) |
+| Timing across campaign txs | **Unaffected** |
+| CEX / KYC / human review | **Unaffected** |
+| Unique target instruction data | **Unaffected** |
+
+**Non-goals:** mixing, unlinkability of sponsor funding, ZK, ephemeral per-user programs as
+default, Jito as a hard requirement, SPL decoy graphs beyond SOL system transfers.
+
+Atomic `cast` decoys share fate with the real intent. Use `campaign` with default
+`--isolate-intent true` when a decoy failure must not abort the action.
 
 ---
 
@@ -38,30 +170,6 @@ account-cooker --schema-v1 handoff--> CLI/SDK (fee payer + DecoySink secrets)
 
 Default cast path uses a **direct System Program transfer** for the user intent. Router CPI
 (`--via-router` on `simulate`/`cast`) is opt-in and increases shared-program-id fingerprint.
-
----
-
-## Threat model
-
-Obscurity against **automated** graph/shape heuristics -- not cryptographic privacy.
-
-| Adversary / signal | Effect of this toolkit |
-| --- | --- |
-| Naive wallet-graph clustering | Partial -- cooked sinks / tips add edges |
-| Simple CU / shape heuristics | Partial -- CU/memo/router padding |
-| Single-obvious-instruction filters | Partial -- interleaved decoys in same tx |
-| Mempool / copy-trade bots | Weak -- timing and unique ix data remain |
-| Analyst who knows `PROGRAM_ID` | Filters on router easily |
-| Sponsor -> cooker funding trace | **Unaffected** (always visible) |
-| Timing across campaign txs | **Unaffected** |
-| CEX / KYC / human review | **Unaffected** |
-| Unique target instruction data | **Unaffected** |
-
-**Non-goals:** mixing, unlinkability of sponsor funding, ZK, ephemeral per-user programs as
-default, Jito as a hard requirement, SPL decoy graphs beyond SOL system transfers.
-
-Atomic `cast` decoys share fate with the real intent. Use `campaign` with default
-`--isolate-intent true` when a decoy failure must not abort the action.
 
 ---
 
@@ -271,21 +379,10 @@ Never commit cooked keys, sponsor keys, or `target/deploy/*-keypair.json`.
 
 ---
 
-## Deployments
-
-| Cluster | Program ID | Recorded (UTC) | Notes |
-| --- | --- | --- | --- |
-| localnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-23 | Smoke **PASS** -- Docker validator + `cook` -> `cast --via-router --send`. Genesis hash ephemeral per `--reset`. |
-| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | -- | **Blocked:** not on-chain; deployer needs funded wallet |
-
-Public-cluster deploy is blocked without a funded deployer keypair (not stored in this repo).
-
----
-
 ## Further reading
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) -- sinks, campaign isolation, dual-lock detail
-- [docs/deploy.md](docs/deploy.md) -- localnet / devnet operator steps
-- [docs/smoke.md](docs/smoke.md) -- post-deploy checklist + reference signatures
+- [ARCHITECTURE.md](ARCHITECTURE.md) — sinks, campaign isolation, dual-lock detail
+- [docs/deploy.md](docs/deploy.md) — localnet / devnet operator steps
+- [docs/smoke.md](docs/smoke.md) — post-deploy checklist + reference signatures
 
-Licensed under [MIT](LICENSE-MIT).
+Cluster status: see **Deployments** above. Licensed under [MIT](LICENSE-MIT).
