@@ -21,7 +21,7 @@ It is **not** a mixer, tumbler, shielded pool, or ZK privacy system. Threat mode
 | Repository | https://github.com/JPClow3/supersonic-tx |
 | Branch (judge entry) | `feature/bar-c` |
 | Release tag | [`v0.1.0-bar-c`](https://github.com/JPClow3/supersonic-tx/releases/tag/v0.1.0-bar-c) |
-| Tag commit (peel) | same as tag `v0.1.0-bar-c` — run `git rev-parse v0.1.0-bar-c^{}` after fetch |
+| Tag commit (peel) | tip of tag v0.1.0-bar-c after Phase D retag |
 | License | MIT |
 
 ### Which tool (bounty scope)
@@ -41,7 +41,7 @@ It is **not** a mixer, tumbler, shielded pool, or ZK privacy system. Threat mode
 
 | Evidence | Link / note |
 | --- | --- |
-| Green CI (workspace `rust` + dual-lock `sbf`) | https://github.com/JPClow3/supersonic-tx/actions/runs/30061171647 |
+| Green CI (workspace `rust` + dual-lock `sbf`) | https://github.com/JPClow3/supersonic-tx/actions/runs/30061374716 |
 | Tests | `cargo test --workspace --locked` (+ standalone router crate tests). Reference Docker suite: **56** executable tests (50 workspace + 6 router). |
 | Localnet smoke | **PASS** 2026-07-24 — Docker validator, deploy program, `cook` → `cast --via-router --send`. Details: [docs/smoke.md](smoke.md). |
 | Reference cast signature (localnet) | `39iuxT1gGq2jsRzUwtb5441ME6aebnTuXhSzrd3yfFvttpGW5LBqGKnbsxbu7FvaTJh3ztek5EWjFw7cQqG7tpdE` — simulation OK, **484/1232** bytes, **6** decoys. |
@@ -91,7 +91,7 @@ Rust E2E noise toolkit (`supersonic-tx` + integrated `account-cooker`): Approach
 
 Repo (tag `v0.1.0-bar-c`): https://github.com/JPClow3/supersonic-tx
 
-CI: https://github.com/JPClow3/supersonic-tx/actions/runs/30061171647
+CI: https://github.com/JPClow3/supersonic-tx/actions/runs/30061374716
 
 Localnet cast: `39iuxT1gGq2jsRzUwtb5441ME6aebnTuXhSzrd3yfFvttpGW5LBqGKnbsxbu7FvaTJh3ztek5EWjFw7cQqG7tpdE`
 
@@ -104,7 +104,7 @@ Localnet cast: `39iuxT1gGq2jsRzUwtb5441ME6aebnTuXhSzrd3yfFvttpGW5LBqGKnbsxbu7Fva
 - [ ] Devnet optional: only if funded deployer — then add Solscan/explorer links to README Deployments **and** this draft
 - [x] Re-read bounty “great contribution” criteria once against this text (Rust E2E, tested/deployable, realistic noise, docs, MIT, cooker composability)
 - [x] No secrets / keypairs in repo or form attachments (operator keypaths gitignored under `.tmp-operator-sim/`)
-- [x] README Verification CI URL matches the run cited here (`30061171647`)
+- [x] README Verification CI URL matches the run cited here (`30061374716`)
 
 ---
 
