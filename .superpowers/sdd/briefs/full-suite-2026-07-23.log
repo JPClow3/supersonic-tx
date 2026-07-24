@@ -1,97 +1,761 @@
-﻿=== full-suite 2026-07-23T22:43:38.9406699-03:00 ===
-STEP: cargo fmt --check
-EXIT: fmt 0
-STEP: cargo test --workspace --locked
-cargo :    Compiling serde v1.0.229
-No C:\Users\lives\AppData\Local\Temp\ps-script-4baabc0c-da81-49b3-960e-f3bb9505c786.ps1:80 caractere:180
-+ ... ked" | Add-Content $log; cargo test --workspace --locked 2>&1 | Tee-O ...
-+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (   Compiling serde v1.0.229:String) [], RemoteException
+=== full suite host start 2026-07-23 (rewritten UTF-8) ===
+=== full suite 2026-07-24T01:46:48+00:00 ===
+=== cargo fmt --check ===
+info: downloading component rustfmt
+FMT_EXIT=0
+=== cargo test --workspace --locked ===
+docker :  Downloading crates ...
+No C:\Users\lives\AppData\Local\Temp\ps-script-3d9b5734-e8e7-47e1-940b-42da78170b96.ps1:86 caractere:1
++ docker run --rm `
++ ~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( Downloading crates ...:String) [], RemoteException
     + FullyQualifiedErrorId : NativeCommandError
  
-   Compiling thiserror v1.0.69
-   Compiling zeroize v1.3.0
-   Compiling ahash v0.8.12
-   Compiling num-bigint v0.4.8
-   Compiling ark-std v0.4.0
-   Compiling digest v0.9.0
-   Compiling ark-serialize-derive v0.4.2
-   Compiling subtle v2.4.1
-   Compiling toml_datetime v1.1.1+spec-1.1.0
-   Compiling crossbeam-deque v0.8.7
-   Compiling toml_edit v0.25.13+spec-1.1.0
-   Compiling wasm-bindgen-shared v0.2.126
-   Compiling paste v1.0.15
-   Compiling rand_chacha v0.2.2
-   Compiling derivative v2.2.0
-   Compiling ark-ff-asm v0.4.2
-   Compiling libsecp256k1-core v0.2.2
-   Compiling hashbrown v0.13.2
-   Compiling toml v0.5.11
-   Compiling base64 v0.21.7
-   Compiling tinyvec_macros v0.1.1
-   Compiling rayon-core v1.13.0
-   Compiling tinyvec v1.12.0
-   Compiling rand v0.7.3
-   Compiling generic-array v0.14.7
-   Compiling hybrid-array v0.4.13
-   Compiling feature-probe v0.1.1
-   Compiling libsecp256k1-gen-ecmult v0.2.1
-   Compiling ark-ff-macros v0.4.2
-   Compiling bv v0.11.1
-   Compiling proc-macro-crate v0.1.5
-   Compiling crypto-common v0.1.7
-   Compiling block-buffer v0.10.4
-   Compiling block-buffer v0.9.0
-   Compiling crypto-mac v0.8.0
-   Compiling digest v0.10.7
-   Compiling sha2 v0.9.9
-   Compiling proc-macro-crate v3.5.0
-   Compiling libsecp256k1-gen-genmult v0.2.1
-   Compiling ark-serialize v0.4.2
-   Compiling hmac v0.8.1
-   Compiling winapi v0.3.9
-   Compiling solana-frozen-abi-macro v1.18.26
-   Compiling borsh-derive-internal v0.10.4
-   Compiling bitmaps v2.1.0
-   Compiling im v15.1.0
-   Compiling cmov v0.5.4
-   Compiling keccak v0.1.6
-   Compiling rustc-hash v1.1.0
-   Compiling bumpalo v3.20.3
-   Compiling cfg_aliases v0.2.2
-   Compiling ctutils v0.4.2
-   Compiling sized-chunks v0.6.5
-   Compiling wasm-bindgen-macro-support v0.2.126
-   Compiling libsecp256k1 v0.6.0
-   Compiling borsh v1.8.0
-   Compiling sha2 v0.10.9
-   Compiling rayon v1.12.0
-   Compiling ark-ff v0.4.2
-   Compiling curve25519-dalek v3.2.1
-   Compiling block-buffer v0.12.1
-   Compiling crypto-common v0.2.2
-   Compiling wasm-bindgen v0.2.126
-   Compiling serde_json v1.0.151
-   Compiling solana-frozen-abi v1.18.26
-   Compiling rand_xoshiro v0.6.0
-   Compiling blake3 v1.8.5
-   Compiling borsh-derive-internal v0.9.3
-   Compiling borsh-schema-derive-internal v0.10.4
-   Compiling borsh-schema-derive-internal v0.9.3
-   Compiling memoffset v0.9.1
-   Compiling bs58 v0.4.0
-   Compiling arrayref v0.3.9
-   Compiling digest v0.11.3
-   Compiling borsh-derive v0.9.3
-   Compiling borsh-derive v0.10.4
-error: failed to run custom build command for `solana-frozen-abi v1.18.26`
+docker :  Downloading crates ...
+No C:\Users\lives\AppData\Local\Temp\ps-script-3d9b5734-e8e7-47e1-940b-42da78170b96.ps1:86 caractere:1
++ docker run --rm `
++ ~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( Downloading crates ...:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  Downloaded base64ct v1.6.0
+   Compiling base64ct v1.6.0
+warning: unexpected `cfg` condition value: `custom-heap`
+ --> programs/supersonic-tx/src/lib.rs:5:1
+  |
+5 | #[program]
+  | ^^^^^^^^^^
+  |
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = help: try referring to `$crate::custom_heap_default` crate for guidance on how handle this unexpected cfg
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: `#[warn(unexpected_cfgs)]` on by default
+  = note: this warning originates in the macro `$crate::custom_heap_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this warning originates in the macro `$crate::custom_heap_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+warning: unexpected `cfg` condition value: `solana`
+ --> programs/supersonic-tx/src/lib.rs:5:1
+  |
+5 | #[program]
+  | ^^^^^^^^^^
+  |
+  = note: expected values for `target_os` are: `aix`, `amdhsa`, `android`, `cuda`, `cygwin`, `dragonfly`, 
+`emscripten`, `espidf`, `freebsd`, `fuchsia`, `haiku`, `helenos`, `hermit`, `horizon`, `hurd`, `illumos`, `ios`, 
+`l4re`, `linux`, `lynxos178`, `macos`, `managarm`, `motor`, `netbsd`, `none`, `nto`, `nuttx`, `openbsd`, `psp`, `psx`, 
+`qurt`, `redox`, `rtems`, `solaris`, and `solid_asp3` and 14 more
+  = note: expected values for `target_os` are: `aix`, `amdhsa`, `android`, `cuda`, `cygwin`, `dragonfly`, 
+`emscripten`, `espidf`, `freebsd`, `fuchsia`, `haiku`, `helenos`, `hermit`, `horizon`, `hurd`, `illumos`, `ios`, 
+`l4re`, `linux`, `lynxos178`, `macos`, `managarm`, `motor`, `netbsd`, `none`, `nto`, `nuttx`, `openbsd`, `psp`, `psx`, 
+`qurt`, `redox`, `rtems`, `solaris`, and `solid_asp3` and 14 more
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = help: try referring to `$crate::custom_heap_default` crate for guidance on how handle this unexpected cfg
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: this warning originates in the macro `$crate::custom_heap_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this warning originates in the macro `$crate::custom_heap_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+warning: unexpected `cfg` condition value: `custom-panic`
+ --> programs/supersonic-tx/src/lib.rs:5:1
+  |
+5 | #[program]
+  | ^^^^^^^^^^
+  |
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = help: try referring to `$crate::custom_panic_default` crate for guidance on how handle this unexpected cfg
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: this warning originates in the macro `$crate::custom_panic_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this warning originates in the macro `$crate::custom_panic_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+warning: unexpected `cfg` condition value: `solana`
+ --> programs/supersonic-tx/src/lib.rs:5:1
+  |
+5 | #[program]
+  | ^^^^^^^^^^
+  |
+  = note: expected values for `target_os` are: `aix`, `amdhsa`, `android`, `cuda`, `cygwin`, `dragonfly`, 
+`emscripten`, `espidf`, `freebsd`, `fuchsia`, `haiku`, `helenos`, `hermit`, `horizon`, `hurd`, `illumos`, `ios`, 
+`l4re`, `linux`, `lynxos178`, `macos`, `managarm`, `motor`, `netbsd`, `none`, `nto`, `nuttx`, `openbsd`, `psp`, `psx`, 
+`qurt`, `redox`, `rtems`, `solaris`, and `solid_asp3` and 14 more
+  = note: expected values for `target_os` are: `aix`, `amdhsa`, `android`, `cuda`, `cygwin`, `dragonfly`, 
+`emscripten`, `espidf`, `freebsd`, `fuchsia`, `haiku`, `helenos`, `hermit`, `horizon`, `hurd`, `illumos`, `ios`, 
+`l4re`, `linux`, `lynxos178`, `macos`, `managarm`, `motor`, `netbsd`, `none`, `nto`, `nuttx`, `openbsd`, `psp`, `psx`, 
+`qurt`, `redox`, `rtems`, `solaris`, and `solid_asp3` and 14 more
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = help: try referring to `$crate::custom_panic_default` crate for guidance on how handle this unexpected cfg
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: this warning originates in the macro `$crate::custom_panic_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this warning originates in the macro `$crate::custom_panic_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+warning: unexpected `cfg` condition value: `anchor-debug`
+ --> programs/supersonic-tx/src/lib.rs:5:1
+  |
+5 | #[program]
+  | ^^^^^^^^^^
+  |
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: using a cfg inside a attribute macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+  = note: using a cfg inside a attribute macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+  = help: try referring to `program` crate for guidance on how handle this unexpected cfg
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: this warning originates in the attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+  = note: this warning originates in the attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+warning: unexpected `cfg` condition value: `anchor-debug`
+ --> programs/supersonic-tx/src/lib.rs:5:1
+  |
+5 | #[program]
+  | ^^^^^^^^^^
+  |
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: using a cfg inside a derive macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+  = note: using a cfg inside a derive macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+  = help: try referring to `Accounts` crate for guidance on how handle this unexpected cfg
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: this warning originates in the derive macro `Accounts` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+  = note: this warning originates in the derive macro `Accounts` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+warning: unexpected `cfg` condition value: `anchor-debug`
+  --> programs/supersonic-tx/src/lib.rs:88:10
+   |
+88 | #[derive(Accounts)]
+   |          ^^^^^^^^
+   |
+   = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+   = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+   = note: using a cfg inside a derive macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+   = note: using a cfg inside a derive macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+   = help: try referring to `Accounts` crate for guidance on how handle this unexpected cfg
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+   = note: this warning originates in the derive macro `Accounts` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+   = note: this warning originates in the derive macro `Accounts` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+warning: unexpected `cfg` condition value: `anchor-debug`
+  --> programs/supersonic-tx/src/lib.rs:94:10
+   |
+94 | #[derive(Accounts)]
+   |          ^^^^^^^^
+   |
+   = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+   = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+   = note: using a cfg inside a derive macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+   = note: using a cfg inside a derive macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+   = help: try referring to `Accounts` crate for guidance on how handle this unexpected cfg
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+   = note: this warning originates in the derive macro `Accounts` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+   = note: this warning originates in the derive macro `Accounts` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+warning: `supersonic-tx` (lib) generated 13 warnings (5 duplicates)
+warning: `supersonic-tx` (lib test) generated 13 warnings (13 duplicates)
+   Compiling spki v0.5.4
+   Compiling pkcs8 v0.8.0
+   Compiling solana-streamer v1.18.26
+   Compiling solana-quic-client v1.18.26
+   Compiling solana-udp-client v1.18.26
+   Compiling solana-client v1.18.26
+   Compiling account-cooker v0.1.0 (/workspace/crates/account-cooker)
+   Compiling supersonic-tx-sdk v0.1.0 (/workspace/crates/supersonic-tx-sdk)
+warning: unused import: `solana_sdk::account::Account`
+ --> crates/supersonic-tx-sdk/src/noise.rs:4:5
+  |
+4 | use solana_sdk::account::Account;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+warning: method `with_tips` is never used
+   --> crates/supersonic-tx-sdk/src/noise.rs:259:19
+    |
+239 | impl StatisticalTransferNoise {
+    | ----------------------------- method in this implementation
+...
+259 |     pub(crate) fn with_tips(
+    |                   ^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+warning: `supersonic-tx-sdk` (lib) generated 2 warnings (run `cargo fix --lib -p supersonic-tx-sdk` to apply 1 
+suggestion)
+warning: `supersonic-tx-sdk` (lib) generated 2 warnings (run `cargo fix --lib -p supersonic-tx-sdk` to apply 1 
+suggestion)
+   Compiling supersonic-tx-cli v0.1.0 (/workspace/crates/supersonic-tx-cli)
+warning: `supersonic-tx-sdk` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 36.61s
+warning: the following packages contain code that will be rejected by a future version of Rust: solana-client v1.18.26
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report 
+future-incompatibilities --id 1`
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report 
+future-incompatibilities --id 1`
+     Running unittests src/lib.rs (/workspace-target/debug/deps/account_cooker-9e09e7a68e89c8b4)
 
-Caused by:
-  could not execute process `H:\Code\Pessoais\SP - 
-Solana\supersonic-tx\target\debug\build\solana-frozen-abi-df0894a3be5a4070\build-script-build` (never executed)
+running 18 tests
+test cooker::tests::assert_funded_refuses_shortfall ... ok
+test cooker::tests::drain_amount_preserves_rent_exempt_minimum ... ok
+test cooker::tests::detect_reuse_warns_on_duplicate_pubkey ... ok
+test cooker::tests::pathless_drain_target_is_skipped_before_keypair_resolution ... ok
+test types::tests::absolute_secret_key_path_fails_deserialization ... ok
+test types::tests::embedded_secret_material_fails_deserialization ... ok
+test types::tests::invalid_schema_version_fails_deserialization ... ok
+test types::tests::handoff_json_round_trip_schema_v1 ... ok
+test types::tests::invalid_structural_bundle_fails_serialization ... ok
+test types::tests::rejects_missing_fee_payer_secret_duplicate_and_underfunding ... ok
+test types::tests::rejects_unsupported_cluster_and_drive_relative_path ... ok
+test types::tests::try_new_rejects_invalid_version_and_absolute_path ... ok
+test types::tests::relative_secret_key_path_is_accepted ... ok
+test types::tests::windows_drive_relative_secret_key_path_fails_deserialization ... ok
+test cooker::tests::funding_rejects_mismatched_sponsor_before_rpc ... ok
+test cooker::tests::second_write_refuses_to_change_existing_key_bytes ... ok
+test cooker::tests::generate_unique_keys_and_write_handoff_paths_only ... ok
+test cooker::tests::write_keypair_dir_handles_sink_first_ordering ... ok
 
-Caused by:
-  Uma pol├¡tica de Controle de Aplicativo bloqueou este arquivo. (os error 4551)
-warning: build failed, waiting for other jobs to finish...
-EXIT: workspace-test 101
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src/lib.rs (/workspace-target/debug/deps/supersonic_tx-c68581d2baa30208)
+
+running 4 tests
+test test_id ... ok
+test tests::routed_instruction_count_is_exactly_one ... ok
+test tests::test_error_enum_codes ... ok
+test tests::test_event_structures ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (/workspace-target/debug/deps/supersonic_tx-5a6559d0b8409f4f)
+
+running 6 tests
+test tests::campaign_skips_decoy_at_real_intent_reserve_boundary ... ok
+test tests::assemble_requires_no_signer_or_target ... ok
+test tests::campaign_defaults_to_isolated_and_no_send ... ok
+test tests::simulate_requires_real_target_and_signer_input_flags_parse ... ok
+test tests::invalid_level_is_rejected ... ok
+test tests::test_cli_parse_cook ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/workspace-target/debug/deps/supersonic_tx_core-e094b056572cd5cd)
+
+running 1 test
+test program_id_tests::program_id_is_not_placeholder ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/workspace-target/debug/deps/supersonic_tx_sdk-d5f3502a6e5141c1)
+
+running 21 tests
+test alt::tests::rejects_non_alt_owner_and_empty_data ... ok
+test builder::tests::allowlist_provenance_alone_is_not_enough_for_atomic_builder ... ok
+test builder::tests::compiles_v0_message_without_versioned_message_try_compile ... ok
+test builder::tests::default_builder_requires_explicit_transfer_policy ... ok
+test builder::tests::shrink_drops_statistical_before_memo ... ok
+test builder::tests::shrink_retains_compute_unit_limit_before_price ... ok
+test noise::tests::arbitrary_program_like_sink_requires_provenance_and_is_denied ... ok
+test noise::tests::cooker_decoy_sink_is_the_only_cooker_minting_path ... ok
+test noise::tests::cooker_rejects_fee_payer_and_drain_target_roles ... ok
+test noise::tests::router_noop_counts_match_spec_standard ... ok
+test campaign::tests::isolated_plan_keeps_target_out_of_decoy_transactions ... ok
+test noise::tests::statistical_noise_rejects_fake_jupiter_default ... ok
+test noise::tests::statistical_noise_rejects_known_program_sinks ... ok
+test noise::tests::statistical_noise_uses_injected_sinks ... ok
+test noise::tests::test_anchor_router_noise_generation ... ok
+test noise::tests::test_compute_budget_noise_generation ... ok
+test noise::tests::trusted_system_sinks_still_generate_transfers ... ok
+test sign::tests::rejects_missing_signer ... ok
+test builder::tests::test_transaction_mtu_size_verification ... ok
+test sign::tests::signed_transaction_has_no_default_signatures ... ok
+test noise::tests::test_benford_law_distribution_properties ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+   Doc-tests account_cooker
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests supersonic_tx
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests supersonic_tx_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests supersonic_tx_sdk
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+WORKSPACE_TEST_EXIT=0
+=== router tests programs/supersonic-tx-tests ===
+warning: unexpected `cfg` condition value: `custom-heap`
+ --> /workspace/programs/supersonic-tx/src/lib.rs:5:1
+  |
+5 | #[program]
+  | ^^^^^^^^^^
+  |
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = help: try referring to `$crate::custom_heap_default` crate for guidance on how handle this unexpected cfg
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: `#[warn(unexpected_cfgs)]` on by default
+  = note: this warning originates in the macro `$crate::custom_heap_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this warning originates in the macro `$crate::custom_heap_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+warning: unexpected `cfg` condition value: `solana`
+ --> /workspace/programs/supersonic-tx/src/lib.rs:5:1
+  |
+5 | #[program]
+  | ^^^^^^^^^^
+  |
+  = note: expected values for `target_os` are: `aix`, `amdhsa`, `android`, `cuda`, `cygwin`, `dragonfly`, 
+`emscripten`, `espidf`, `freebsd`, `fuchsia`, `haiku`, `helenos`, `hermit`, `horizon`, `hurd`, `illumos`, `ios`, 
+`l4re`, `linux`, `lynxos178`, `macos`, `managarm`, `motor`, `netbsd`, `none`, `nto`, `nuttx`, `openbsd`, `psp`, `psx`, 
+`qurt`, `redox`, `rtems`, `solaris`, and `solid_asp3` and 14 more
+  = note: expected values for `target_os` are: `aix`, `amdhsa`, `android`, `cuda`, `cygwin`, `dragonfly`, 
+`emscripten`, `espidf`, `freebsd`, `fuchsia`, `haiku`, `helenos`, `hermit`, `horizon`, `hurd`, `illumos`, `ios`, 
+`l4re`, `linux`, `lynxos178`, `macos`, `managarm`, `motor`, `netbsd`, `none`, `nto`, `nuttx`, `openbsd`, `psp`, `psx`, 
+`qurt`, `redox`, `rtems`, `solaris`, and `solid_asp3` and 14 more
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = help: try referring to `$crate::custom_heap_default` crate for guidance on how handle this unexpected cfg
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: this warning originates in the macro `$crate::custom_heap_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this warning originates in the macro `$crate::custom_heap_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+warning: unexpected `cfg` condition value: `custom-panic`
+ --> /workspace/programs/supersonic-tx/src/lib.rs:5:1
+  |
+5 | #[program]
+  | ^^^^^^^^^^
+  |
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = help: try referring to `$crate::custom_panic_default` crate for guidance on how handle this unexpected cfg
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: this warning originates in the macro `$crate::custom_panic_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this warning originates in the macro `$crate::custom_panic_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+warning: unexpected `cfg` condition value: `solana`
+ --> /workspace/programs/supersonic-tx/src/lib.rs:5:1
+  |
+5 | #[program]
+  | ^^^^^^^^^^
+  |
+  = note: expected values for `target_os` are: `aix`, `amdhsa`, `android`, `cuda`, `cygwin`, `dragonfly`, 
+`emscripten`, `espidf`, `freebsd`, `fuchsia`, `haiku`, `helenos`, `hermit`, `horizon`, `hurd`, `illumos`, `ios`, 
+`l4re`, `linux`, `lynxos178`, `macos`, `managarm`, `motor`, `netbsd`, `none`, `nto`, `nuttx`, `openbsd`, `psp`, `psx`, 
+`qurt`, `redox`, `rtems`, `solaris`, and `solid_asp3` and 14 more
+  = note: expected values for `target_os` are: `aix`, `amdhsa`, `android`, `cuda`, `cygwin`, `dragonfly`, 
+`emscripten`, `espidf`, `freebsd`, `fuchsia`, `haiku`, `helenos`, `hermit`, `horizon`, `hurd`, `illumos`, `ios`, 
+`l4re`, `linux`, `lynxos178`, `macos`, `managarm`, `motor`, `netbsd`, `none`, `nto`, `nuttx`, `openbsd`, `psp`, `psx`, 
+`qurt`, `redox`, `rtems`, `solaris`, and `solid_asp3` and 14 more
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = note: using a cfg inside a macro will use the cfgs from the destination crate and not the ones from the defining 
+crate
+  = help: try referring to `$crate::custom_panic_default` crate for guidance on how handle this unexpected cfg
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: this warning originates in the macro `$crate::custom_panic_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this warning originates in the macro `$crate::custom_panic_default` which comes from the expansion of the 
+attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
+warning: unexpected `cfg` condition value: `anchor-debug`
+ --> /workspace/programs/supersonic-tx/src/lib.rs:5:1
+  |
+5 | #[program]
+  | ^^^^^^^^^^
+  |
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: using a cfg inside a attribute macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+  = note: using a cfg inside a attribute macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+  = help: try referring to `program` crate for guidance on how handle this unexpected cfg
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: this warning originates in the attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+  = note: this warning originates in the attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+warning: unexpected `cfg` condition value: `anchor-debug`
+ --> /workspace/programs/supersonic-tx/src/lib.rs:5:1
+  |
+5 | #[program]
+  | ^^^^^^^^^^
+  |
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+  = note: using a cfg inside a derive macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+  = note: using a cfg inside a derive macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+  = help: try referring to `Accounts` crate for guidance on how handle this unexpected cfg
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+  = note: this warning originates in the derive macro `Accounts` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+  = note: this warning originates in the derive macro `Accounts` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+warning: unexpected `cfg` condition value: `anchor-debug`
+  --> /workspace/programs/supersonic-tx/src/lib.rs:88:10
+   |
+88 | #[derive(Accounts)]
+   |          ^^^^^^^^
+   |
+   = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+   = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+   = note: using a cfg inside a derive macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+   = note: using a cfg inside a derive macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+   = help: try referring to `Accounts` crate for guidance on how handle this unexpected cfg
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+   = note: this warning originates in the derive macro `Accounts` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+   = note: this warning originates in the derive macro `Accounts` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+warning: unexpected `cfg` condition value: `anchor-debug`
+  --> /workspace/programs/supersonic-tx/src/lib.rs:94:10
+   |
+94 | #[derive(Accounts)]
+   |          ^^^^^^^^
+   |
+   = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+   = note: expected values for `feature` are: `cpi`, `default`, `idl-build`, `no-entrypoint`, `no-idl`, and 
+`no-log-ix-name`
+   = note: using a cfg inside a derive macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+   = note: using a cfg inside a derive macro will use the cfgs from the destination crate and not the ones from the 
+defining crate
+   = help: try referring to `Accounts` crate for guidance on how handle this unexpected cfg
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+   = note: this warning originates in the derive macro `Accounts` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+   = note: this warning originates in the derive macro `Accounts` (in Nightly builds, run with -Z macro-backtrace for 
+more info)
+warning: `supersonic-tx` (lib) generated 13 warnings (5 duplicates)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.68s
+warning: the following packages contain code that will be rejected by a future version of Rust: solana-client v1.18.26
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report 
+future-incompatibilities --id 1`
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report 
+future-incompatibilities --id 1`
+     Running tests/router_tests.rs (/workspace-target/program-tests/debug/deps/router_tests-16f7a8d3b7304f31)
+
+running 6 tests
+[2026-07-24T01:47:33.633017759Z INFO  solana_program_test] "supersonic_tx" builtin program
+[2026-07-24T01:47:33.633065612Z INFO  solana_program_test] "supersonic_tx" builtin program
+[2026-07-24T01:47:33.633077463Z INFO  solana_program_test] "supersonic_tx" builtin program
+[2026-07-24T01:47:33.633036661Z INFO  solana_program_test] "supersonic_tx" builtin program
+[2026-07-24T01:47:33.633059972Z INFO  solana_program_test] "supersonic_tx" builtin program
+[2026-07-24T01:47:33.633071842Z INFO  solana_program_test] "supersonic_tx" builtin program
+[2026-07-24T01:47:34.010927652Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.010927652Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.012240267Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.012240267Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.013202483Z DEBUG solana_runtime::message_processor::stable_log] Program log: Instruction: 
+ExecuteFuzzyBundle
+[2026-07-24T01:47:34.013202483Z DEBUG solana_runtime::message_processor::stable_log] Program log: Instruction: 
+ExecuteFuzzyBundle
+[2026-07-24T01:47:34.013239435Z DEBUG solana_runtime::message_processor::stable_log] Program log: supersonic-tx: 
+routing target instruction (seed: 7, routed instructions: 1)
+[2026-07-24T01:47:34.013239435Z DEBUG solana_runtime::message_processor::stable_log] Program log: supersonic-tx: 
+routing target instruction (seed: 7, routed instructions: 1)
+[2026-07-24T01:47:34.013249425Z DEBUG solana_runtime::message_processor::stable_log] Program log: supersonic-tx: 
+routing CPI across 3 remaining account(s)
+[2026-07-24T01:47:34.013249425Z DEBUG solana_runtime::message_processor::stable_log] Program log: supersonic-tx: 
+routing CPI across 3 remaining account(s)
+[2026-07-24T01:47:34.013267656Z DEBUG solana_runtime::message_processor::stable_log] Program 
+11111111111111111111111111111111 invoke [1]
+[2026-07-24T01:47:34.013267656Z DEBUG solana_runtime::message_processor::stable_log] Program 
+11111111111111111111111111111111 invoke [1]
+[2026-07-24T01:47:34.013328550Z DEBUG solana_runtime::message_processor::stable_log] Program 
+11111111111111111111111111111111 invoke [2]
+[2026-07-24T01:47:34.013328550Z DEBUG solana_runtime::message_processor::stable_log] Program 
+11111111111111111111111111111111 invoke [2]
+[2026-07-24T01:47:34.013756124Z DEBUG solana_runtime::message_processor::stable_log] Program 
+11111111111111111111111111111111 success
+[2026-07-24T01:47:34.013756124Z DEBUG solana_runtime::message_processor::stable_log] Program 
+11111111111111111111111111111111 success
+[2026-07-24T01:47:34.013818968Z DEBUG solana_runtime::message_processor::stable_log] Program 
+11111111111111111111111111111111 success
+[2026-07-24T01:47:34.013818968Z DEBUG solana_runtime::message_processor::stable_log] Program 
+11111111111111111111111111111111 success
+[2026-07-24T01:47:34.013867071Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 success
+[2026-07-24T01:47:34.013867071Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 success
+[2026-07-24T01:47:34.013917694Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 success
+[2026-07-24T01:47:34.013917694Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 success
+[2026-07-24T01:47:34.014299685Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.014299685Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.014399391Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.014399391Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.014612313Z DEBUG solana_runtime::message_processor::stable_log] Program log: Instruction: 
+NoopDecoy
+[2026-07-24T01:47:34.014612313Z DEBUG solana_runtime::message_processor::stable_log] Program log: Instruction: 
+NoopDecoy
+[2026-07-24T01:47:34.014646035Z DEBUG solana_runtime::message_processor::stable_log] Program log: supersonic-tx: 
+executed zero-op decoy instruction (seed: 42)
+[2026-07-24T01:47:34.014646035Z DEBUG solana_runtime::message_processor::stable_log] Program log: supersonic-tx: 
+executed zero-op decoy instruction (seed: 42)
+[2026-07-24T01:47:34.014679077Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 success
+[2026-07-24T01:47:34.014679077Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 success
+[2026-07-24T01:47:34.014740910Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 success
+[2026-07-24T01:47:34.014740910Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 success
+test noop_decoy_succeeds ... ok
+test execute_fuzzy_bundle_system_transfer_cpi ... ok
+[2026-07-24T01:47:34.032343158Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.032343158Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.032459485Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.032459485Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.032691008Z DEBUG solana_runtime::message_processor::stable_log] Program log: Instruction: 
+ExecuteFuzzyBundle
+[2026-07-24T01:47:34.032691008Z DEBUG solana_runtime::message_processor::stable_log] Program log: Instruction: 
+ExecuteFuzzyBundle
+[2026-07-24T01:47:34.032724980Z DEBUG solana_runtime::message_processor::stable_log] Program log: AnchorError thrown 
+in /workspace/programs/supersonic-tx/src/lib.rs:41. Error Code: InvalidBundleManifest. Error Number: 6000. Error 
+Message: Invalid routed instruction count or bundle structure..
+[2026-07-24T01:47:34.032724980Z DEBUG solana_runtime::message_processor::stable_log] Program log: AnchorError thrown 
+in /workspace/programs/supersonic-tx/src/lib.rs:41. Error Code: InvalidBundleManifest. Error Number: 6000. Error 
+Message: Invalid routed instruction count or bundle structure..
+[2026-07-24T01:47:34.032792814Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1770
+[2026-07-24T01:47:34.032792814Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1770
+[2026-07-24T01:47:34.032839787Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1770
+[2026-07-24T01:47:34.032839787Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1770
+test execute_fuzzy_bundle_rejects_multiple_routed_instructions ... ok
+[2026-07-24T01:47:34.152348901Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.152348901Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.152483708Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.152483708Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.152805827Z DEBUG solana_runtime::message_processor::stable_log] Program log: Instruction: 
+ExecuteFuzzyBundle
+[2026-07-24T01:47:34.152805827Z DEBUG solana_runtime::message_processor::stable_log] Program log: Instruction: 
+ExecuteFuzzyBundle
+[2026-07-24T01:47:34.152859781Z DEBUG solana_runtime::message_processor::stable_log] Program log: AnchorError thrown 
+in /workspace/programs/supersonic-tx/src/lib.rs:41. Error Code: InvalidBundleManifest. Error Number: 6000. Error 
+Message: Invalid routed instruction count or bundle structure..
+[2026-07-24T01:47:34.152859781Z DEBUG solana_runtime::message_processor::stable_log] Program log: AnchorError thrown 
+in /workspace/programs/supersonic-tx/src/lib.rs:41. Error Code: InvalidBundleManifest. Error Number: 6000. Error 
+Message: Invalid routed instruction count or bundle structure..
+[2026-07-24T01:47:34.152872671Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1770
+[2026-07-24T01:47:34.152872671Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1770
+[2026-07-24T01:47:34.152907473Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1770
+[2026-07-24T01:47:34.152907473Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1770
+test execute_fuzzy_bundle_rejects_zero_routed_instructions ... ok
+[2026-07-24T01:47:34.158264280Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.158264280Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.158418609Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.158418609Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.158636182Z DEBUG solana_runtime::message_processor::stable_log] Program log: Instruction: 
+ExecuteFuzzyBundle
+[2026-07-24T01:47:34.158636182Z DEBUG solana_runtime::message_processor::stable_log] Program log: Instruction: 
+ExecuteFuzzyBundle
+[2026-07-24T01:47:34.158691345Z DEBUG solana_runtime::message_processor::stable_log] Program log: supersonic-tx: 
+routing target instruction (seed: 1, routed instructions: 1)
+[2026-07-24T01:47:34.158691345Z DEBUG solana_runtime::message_processor::stable_log] Program log: supersonic-tx: 
+routing target instruction (seed: 1, routed instructions: 1)
+[2026-07-24T01:47:34.158746498Z DEBUG solana_runtime::message_processor::stable_log] Program log: AnchorError thrown 
+in /workspace/programs/supersonic-tx/src/lib.rs:55. Error Code: MissingCpiProgram. Error Number: 6002. Error Message: 
+A deployed executable CPI target program is required..
+[2026-07-24T01:47:34.158746498Z DEBUG solana_runtime::message_processor::stable_log] Program log: AnchorError thrown 
+in /workspace/programs/supersonic-tx/src/lib.rs:55. Error Code: MissingCpiProgram. Error Number: 6002. Error Message: 
+A deployed executable CPI target program is required..
+[2026-07-24T01:47:34.158765409Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1772
+[2026-07-24T01:47:34.158765409Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1772
+[2026-07-24T01:47:34.158803931Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1772
+[2026-07-24T01:47:34.158803931Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1772
+test execute_fuzzy_bundle_rejects_non_executable_cpi_target ... ok
+[2026-07-24T01:47:34.176139513Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.176139513Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.176244629Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.176244629Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 invoke [1]
+[2026-07-24T01:47:34.176433990Z DEBUG solana_runtime::message_processor::stable_log] Program log: Instruction: 
+ExecuteFuzzyBundle
+[2026-07-24T01:47:34.176433990Z DEBUG solana_runtime::message_processor::stable_log] Program log: Instruction: 
+ExecuteFuzzyBundle
+[2026-07-24T01:47:34.176483803Z DEBUG solana_runtime::message_processor::stable_log] Program log: supersonic-tx: 
+routing target instruction (seed: 1, routed instructions: 1)
+[2026-07-24T01:47:34.176483803Z DEBUG solana_runtime::message_processor::stable_log] Program log: supersonic-tx: 
+routing target instruction (seed: 1, routed instructions: 1)
+[2026-07-24T01:47:34.176515015Z DEBUG solana_runtime::message_processor::stable_log] Program log: AnchorError thrown 
+in /workspace/programs/supersonic-tx/src/lib.rs:53. Error Code: MissingCpiProgram. Error Number: 6002. Error Message: 
+A deployed executable CPI target program is required..
+[2026-07-24T01:47:34.176515015Z DEBUG solana_runtime::message_processor::stable_log] Program log: AnchorError thrown 
+in /workspace/programs/supersonic-tx/src/lib.rs:53. Error Code: MissingCpiProgram. Error Number: 6002. Error Message: 
+A deployed executable CPI target program is required..
+[2026-07-24T01:47:34.176530195Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1772
+[2026-07-24T01:47:34.176530195Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1772
+[2026-07-24T01:47:34.176567748Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1772
+[2026-07-24T01:47:34.176567748Z DEBUG solana_runtime::message_processor::stable_log] Program 
+GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9 failed: custom program error: 0x1772
+test execute_fuzzy_bundle_rejects_missing_cpi_target ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+
+ROUTER_TEST_EXIT=0
+=== SUMMARY fmt=0 workspace=0 router=0 ===
+DOCKER_SUITE_EXIT=0
