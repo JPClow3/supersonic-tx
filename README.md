@@ -1,32 +1,181 @@
 # supersonic-tx
 
-Rust toolkit for **behavioral obscurity** on Solana: interleave a real instruction with
-fail-soft compute-budget, memo, RPC-validated transfer sinks, and optional deployed-router
-noise. Not a mixer, anonymity system, or protection against a determined analyst.
+Rust workspace for **behavioral obscurity** on Solana: interleave a real instruction with
+fail-soft compute-budget, memo, RPC-validated transfer sinks, and optional shared-router
+noise. Not a mixer, anonymity set, shielded pool, or ZK system.
 
-Design spec: [docs/superpowers/specs/2026-07-23-supersonic-tx-design.md](docs/superpowers/specs/2026-07-23-supersonic-tx-design.md)
-
-## What it does / does not do
-
-| Helps against (partially) | Does **not** stop |
+| Spec / evidence | Path |
 | --- | --- |
-| Naive wallet-graph clustering | Sponsor ? cooker funding trace |
-| Simple CU / shape heuristics | Timing correlation across campaign txs |
-| Single-obvious-instruction filters | Human review, CEX attribution |
-| | Shared router program-id filtering |
-| | Unique target instruction data |
+| Design | [docs/superpowers/specs/2026-07-23-supersonic-tx-design.md](docs/superpowers/specs/2026-07-23-supersonic-tx-design.md) |
+| Architecture | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Deploy | [docs/deploy.md](docs/deploy.md) |
+| Smoke | [docs/smoke.md](docs/smoke.md) |
+| Bar-C closeout | [.superpowers/sdd/briefs/bar-c-closeout-2026-07-23.md](.superpowers/sdd/briefs/bar-c-closeout-2026-07-23.md) |
 
-Atomic `cast` decoys share the fate of the real intent. Use `campaign` with default
-`--isolate-intent` when decoy failure must not abort the action.
+---
 
-## Install and build
+## System model
 
-**Toolchain:** Solana ~1.18, Anchor 0.30.1, Rust stable. Primary development and CI run
-on **Linux (Docker recommended on Windows).**
+**Approach 1:** one global Anchor router + off-chain orchestrator.
 
-### Native / CLI tests (full workspace)
+```text
+CLI (cook | simulate | cast | campaign | info)
+  -> SDK (FuzzyBundleBuilder / CampaignPlanner / AltResolver / sign+RPC)
+    -> core (types, errors, PROGRAM_ID, MAX_TX_PAYLOAD_BYTES=1232)
+      -> optional CPI into programs/supersonic-tx
+        -> Solana RPC
+account-cooker --schema-v1 handoff--> CLI/SDK (fee payer + DecoySink secrets)
+```
+
+| Layer | On-chain | Off-chain |
+| --- | --- | --- |
+| Entropy, decoy counts, interleave order | - | SDK generators + builder |
+| Campaign scheduling / isolate-intent | - | `CampaignPlanner` + CLI |
+| ALT fetch, V0 compile, MTU shrink | - | `AltResolver` + builder |
+| Sign / simulate / confirm-send | - | `sign_versioned_tx`, `simulate_and_send` |
+| `noop_decoy`, `execute_fuzzy_bundle` | router program | SDK emits ixs only if opted in |
+| System / Memo / ComputeBudget ixs | native programs | SDK builds them |
+
+Default cast path uses a **direct System Program transfer** for the user intent. Router CPI
+(`--via-router` on `simulate`/`cast`) is opt-in and increases shared-program-id fingerprint.
+
+---
+
+## Threat model
+
+Obscurity against **automated** graph/shape heuristics -- not cryptographic privacy.
+
+| Adversary / signal | Effect of this toolkit |
+| --- | --- |
+| Naive wallet-graph clustering | Partial -- cooked sinks / tips add edges |
+| Simple CU / shape heuristics | Partial -- CU/memo/router padding |
+| Single-obvious-instruction filters | Partial -- interleaved decoys in same tx |
+| Mempool / copy-trade bots | Weak -- timing and unique ix data remain |
+| Analyst who knows `PROGRAM_ID` | Filters on router easily |
+| Sponsor -> cooker funding trace | **Unaffected** (always visible) |
+| Timing across campaign txs | **Unaffected** |
+| CEX / KYC / human review | **Unaffected** |
+| Unique target instruction data | **Unaffected** |
+
+**Non-goals:** mixing, unlinkability of sponsor funding, ZK, ephemeral per-user programs as
+default, Jito as a hard requirement, SPL decoy graphs beyond SOL system transfers.
+
+Atomic `cast` decoys share fate with the real intent. Use `campaign` with default
+`--isolate-intent true` when a decoy failure must not abort the action.
+
+---
+
+## Bundle pipeline
+
+1. **Generators** (level-gated): `StatisticalTransferNoise`, `ComputeBudgetNoise`,
+   `MemoNoise`, `AnchorRouterNoise` (`noop_decoy`). Arbitrary custom generators / transfers
+   to program IDs are not on the safe builder path.
+2. **Sink provenance** -- `TrustedSystemAccount` only:
+   - `from_cooker_decoy_sink` -- handoff role `DecoySink` **and** non-empty `secret_key_path`
+   - `try_from_tip_allowlist` -- `--tip` pubkey present in the CLI allowlist
+3. **RPC validation** -- `DecoySink::validate_on_chain` rejects executable / non-system owners.
+   Without validated sinks -> `without_transfer_noise()` (CU/memo/router only).
+4. **MTU** -- serialize <= `MAX_TX_PAYLOAD_BYTES` (1232). Shrink drop order:
+   statistical System transfers -> memo -> extra router noops (keep >=1) -> CU price -> other
+   decoys. **Never** drop target instructions; protect at least one CU limit if present.
+5. **V0 + ALT** -- `--alt` RPC-fetches the lookup table (never synthesized). Fetch/decode
+   failure -> non-ALT V0 + shrink. Cast/campaign ALT sim failures retry without ALT.
+6. **Sign / send** -- reject default signatures; always `simulateTransaction`; `--send`
+   uses `send_and_confirm_transaction` so campaigns and `--drain-to` see confirmed balances.
+
+---
+
+## Program surface
+
+Program ID: `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9`
+(synced: `declare_id!`, `PROGRAM_ID_STR`, `Anchor.toml`, deploy keypair).
+
+| Instruction | Behavior |
+| --- | --- |
+| `noop_decoy(entropy_seed)` | Signer-gated zero-op; emits `DecoyExecuted` |
+| `execute_fuzzy_bundle(bundle_seed, routed_instruction_count, instruction_data)` | Requires `routed_instruction_count == 1`; CPI to first remaining executable account; emits `BundleExecuted` **only after** successful `invoke` |
+
+CPI honesty: missing/non-executable CPI program -> `MissingCpiProgram`; failed `invoke` ->
+`CpiExecutionFailed` (no success event without CPI). Primary decoy path is `noop_decoy`;
+CPI wrapper is cast/simulate `--via-router` only (after `verify_executable_program`).
+
+---
+
+## account-cooker
+
+| Concern | Behavior |
+| --- | --- |
+| Schema | Handoff `schema_version: 1` only (`handoff-<unix_ts>.json`) |
+| Roles | `FeePayer`, `DecoySink`, `DrainTarget` |
+| Secrets | Paths under `--out-dir` (`keys/...`); never embed raw secrets in JSON |
+| Fund | Sponsor System transfers; **fresh blockhash per confirm** (avoids mid-batch expiry) |
+| Drain | Leaves rent-exempt minimum; CLI `--drain-to` needs `--send` + confirmed real intent |
+| Overwrite | Refuses existing key files -- use a fresh `--out-dir` |
+| Provenance | Sink usable as transfer noise only if role + `secret_key_path` pass cooker gate |
+
+```json
+{
+  "schema_version": 1,
+  "cluster": "localnet",
+  "created_at_unix": 0,
+  "sponsor_pubkey": "<base58>",
+  "accounts": [
+    {
+      "role": "FeePayer",
+      "pubkey": "<base58>",
+      "secret_key_path": "keys/fee_payer.json",
+      "funded_lamports": 50000000,
+      "min_required_lamports": 10000000
+    }
+  ],
+  "warnings": []
+}
+```
+
+---
+
+## Campaign
+
+| Rule | Detail |
+| --- | --- |
+| Default | `--isolate-intent true` -- statistical transfers stay out of the real-intent tx |
+| Kinds | `DecoyOnly` (best-effort) vs `RealIntent` (fatal on failure) |
+| Preflight | Estimate fees/spend; skip decoys that would breach real-intent lamport reserve |
+| Blockhash | Recompile + resign with a **fresh** blockhash immediately before each send |
+| Drain | `--drain-to` requires `--send --handoff` and a confirmed real-intent broadcast |
+
+`campaign` has no `--via-router` (direct System transfer for intent).
+
+---
+
+## Build / test / deploy
+
+**Toolchain:** Solana ~1.18, Anchor 0.30.1, Rust stable. Prefer **Linux Docker** (native
+Windows Cargo may hit WDAC error 4551 on build scripts).
+
+### Workspace members
+
+| Path | Role |
+| --- | --- |
+| `crates/account-cooker` | Keygen, fund, drain, handoff |
+| `crates/supersonic-tx-core` | Types, errors, program ID, 1232 limit |
+| `crates/supersonic-tx-sdk` | Builder, ALT, campaign, sign/RPC |
+| `crates/supersonic-tx-cli` | Operator binary `supersonic-tx` |
+| `programs/supersonic-tx` | Anchor router |
+| `programs/supersonic-tx-tests/` | Standalone workspace (own lock); **excluded** from root |
+
+### Dual-lock
+
+| Use | Lock | Image |
+| --- | --- | --- |
+| Native / `cargo test --workspace --locked` | Root `Cargo.lock` | `rust:latest` |
+| SBF / IDL | `.superpowers/sdd/briefs/Cargo.lock.sbf.v3` | `backpackapp/build:v0.30.1` |
+
+Full `anchor build` on the **full** workspace can fail under Anchor 0.30.1 / Cargo 1.79
+(edition2024 transitive deps). Use the dual-lock SBF script instead.
 
 ```bash
+# Format + workspace tests
 docker run --rm -v "$PWD:/workspace" \
   -v supersonic-cargo-registry:/usr/local/cargo/registry \
   -v supersonic-cargo-git:/usr/local/cargo/git \
@@ -34,34 +183,15 @@ docker run --rm -v "$PWD:/workspace" \
   -w /workspace -e CARGO_TARGET_DIR=/workspace-target rust:latest \
   bash -c 'rustup component add rustfmt && cargo fmt --all -- --check && cargo test --workspace --locked'
 
+# Router crate tests (standalone lock)
 docker run --rm -v "$PWD:/workspace" \
   -v supersonic-cargo-registry:/usr/local/cargo/registry \
   -v supersonic-cargo-git:/usr/local/cargo/git \
   -v supersonic-target:/workspace-target/program-tests \
   -w /workspace/programs/supersonic-tx-tests -e CARGO_TARGET_DIR=/workspace-target/program-tests \
   rust:latest cargo test --locked
-```
 
-**56 tests** (50 workspace + 6 router crate). Log: `.superpowers/sdd/briefs/bar-c-cargo-test-2026-07-23.log`.
-
-Build the CLI:
-
-```bash
-cargo build --release -p supersonic-tx-cli --locked
-# binary: target/release/supersonic-tx
-```
-
-### SBF program + IDL (dual-lock path)
-
-Full `anchor build` on the **full workspace** can fail under Anchor 0.30.1 / Cargo 1.79
-(edition2024 transitive deps). Use the **dual-lock** SBF path instead:
-
-| Use | Lock file | Image |
-| --- | --- | --- |
-| Native / `cargo test --workspace --locked` | Root `Cargo.lock` | `rust:latest` |
-| SBF / `cargo build-sbf` / `anchor idl build` | `.superpowers/sdd/briefs/Cargo.lock.sbf.v3` | `backpackapp/build:v0.30.1` |
-
-```bash
+# SBF .so + IDL
 docker run --rm -v "$PWD:/workspace" \
   -v supersonic-cargo-registry:/usr/local/cargo/registry \
   -v supersonic-cargo-git:/usr/local/cargo/git \
@@ -69,30 +199,24 @@ docker run --rm -v "$PWD:/workspace" \
   -w /workspace -e CARGO_TARGET_DIR=/workspace-target \
   backpackapp/build:v0.30.1 \
   bash .superpowers/sdd/briefs/bar-c-build-sbf-only.sh
+
+# CLI binary
+cargo build --release -p supersonic-tx-cli --locked
+# -> target/release/supersonic-tx
 ```
 
-Produces `target/deploy/supersonic_tx.so` and `target/idl/supersonic_tx.json`. Details:
-[docs/deploy.md](docs/deploy.md), [ARCHITECTURE.md](ARCHITECTURE.md).
+Localnet smoke: [docs/smoke.md](docs/smoke.md). Deploy: [docs/deploy.md](docs/deploy.md).
 
-## Workspace
+---
 
-| Crate / program | Role |
-| --- | --- |
-| `crates/account-cooker` | Key generation, sponsor funding, drain, schema-v1 handoff |
-| `crates/supersonic-tx-core` | Types, errors, program ID, 1232-byte limit |
-| `crates/supersonic-tx-sdk` | Builder, ALT resolver, signing/RPC, campaign planner |
-| `crates/supersonic-tx-cli` | `cook`, `simulate`, `cast`, `campaign`, `info` |
-| `programs/supersonic-tx` | Anchor noop + opt-in CPI router |
+## CLI reference
 
-`programs/supersonic-tx-tests/` is a **standalone** workspace (own `Cargo.lock`).
-
-## CLI
-
-Default RPC: `https://api.devnet.solana.com`. Provide exactly one of `--keypair` or
-`--handoff` for signed paths. Broadcast requires explicit `--send`.
+Default RPC: `https://api.devnet.solana.com`. Signed paths require exactly one of
+`--keypair` or `--handoff`. Broadcast requires explicit `--send`.
 
 ```text
-supersonic-tx cook --sponsor-keypair sponsor.json --out-dir cooked/ \
+supersonic-tx cook \
+  --sponsor-keypair PATH --out-dir DIR \
   [--rpc-url URL] [--cluster devnet|localnet|mainnet-beta] \
   [--sinks 2] [--fee-payer-lamports 50000000] [--sink-lamports 2000000] [--dry-run]
 
@@ -109,59 +233,59 @@ supersonic-tx cast --target PUBKEY [--amount LAMPORTS] [--level standard] \
 
 supersonic-tx campaign --target PUBKEY [--amount LAMPORTS] [--level standard] \
   [--rpc-url URL] (--keypair PATH | --handoff PATH) \
-  [--txs 2] [--isolate-intent true] [--alt ALT_PUBKEY] [--tip PUBKEY ...] \
+  [--txs 2] [--isolate-intent true|false] [--alt ALT_PUBKEY] [--tip PUBKEY ...] \
   [--send] [--drain-to PUBKEY]
 
 supersonic-tx info
 ```
 
-- **`cook`** — writes keypairs + `handoff-<ts>.json`; refuses to overwrite existing key
-  paths. Use a fresh `--out-dir` each run. `--dry-run` skips funding.
-- **`assemble`** — unsigned offline diagnostics (no RPC, no keys).
-- **`simulate`** — sign + `simulateTransaction`; never broadcasts.
-- **`cast`** — one atomic fuzzy tx; `--via-router` checks program is executable first.
-- **`campaign`** — multi-tx plan; decoy failures are best-effort; real-intent failure is
-  fatal. `--drain-to` requires `--send --handoff`.
+| Command | Notes |
+| --- | --- |
+| `cook` | Writes keypairs + handoff; refuses overwrite; `--dry-run` skips funding; cluster checked via genesis hash (`localnet` also requires loopback RPC) |
+| `assemble` | Unsigned offline diagnostics -- no RPC, no keys |
+| `simulate` | Sign + `simulateTransaction`; never broadcasts |
+| `cast` | One atomic fuzzy V0 tx; `--via-router` checks executable program first |
+| `campaign` | Multi-tx; decoy failures logged/continued; real-intent fatal; no `--via-router` |
+| `info` | Prints identity / threat-model summary |
 
-Transfer noise needs RPC-validated sinks: cooked `DecoySink` accounts from `--handoff`, or
-`--tip` pubkeys on an allowlist. Without sinks, transfer noise is disabled.
-
-On Windows, restrict the cook output directory before funding keys:
+Windows cook dir (Unix uses mode `0600`; Windows inherits ACLs -- restrict before funding):
 
 ```powershell
 mkdir cooked
 icacls cooked /inheritance:r /grant:r "$env:USERNAME:(OI)(CI)F"
 ```
 
-Never commit cooked keys or deploy keypairs.
+Never commit cooked keys, sponsor keys, or `target/deploy/*-keypair.json`.
+
+---
+
+## Limits / ops
+
+| Item | Status |
+| --- | --- |
+| Dual-lock SBF vs native | Required for reproducible `.so`/IDL under Anchor 0.30.1 |
+| Full-workspace `anchor build` | May fail on edition2024 metadata; use `bar-c-build-sbf-only.sh` |
+| Devnet deploy/smoke | Needs **funded** deployer wallet (public faucet may 429) |
+| Windows host Cargo | WDAC 4551 can block build scripts -- use Docker Linux |
+| Shared `PROGRAM_ID` | Operable demo surface; also a clustering handle |
+
+---
 
 ## Deployments
 
 | Cluster | Program ID | Recorded (UTC) | Notes |
 | --- | --- | --- | --- |
-| localnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-23 | Smoke PASS — Docker validator + `cook` ? `cast --via-router --send`. Genesis hash is ephemeral per `--reset`. |
-| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | — | **Blocked:** program not on-chain; deployer needs funded wallet (public faucet returned HTTP 429 at closeout). |
+| localnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | 2026-07-23 | Smoke **PASS** -- Docker validator + `cook` -> `cast --via-router --send`. Genesis hash ephemeral per `--reset`. |
+| devnet | `GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9` | -- | **Blocked:** not on-chain; deployer needs funded wallet |
 
-Program pubkey is fixed in `declare_id!`, `PROGRAM_ID_STR`, and `Anchor.toml`. **Public-cluster
-deploy and live smoke are blocked without a funded deployer keypair** (not stored in this repo).
+Public-cluster deploy is blocked without a funded deployer keypair (not stored in this repo).
 
-Operator steps: [docs/deploy.md](docs/deploy.md). Smoke checklist: [docs/smoke.md](docs/smoke.md).
-Closeout evidence: `.superpowers/sdd/briefs/bar-c-closeout-2026-07-23.md`.
-
-## Safety behavior
-
-- `simulate` and default `cast`/`campaign` sign a V0 tx and call `simulateTransaction`.
-- `--send` (or `campaign --send`) broadcasts only after successful simulation and non-default
-  signatures, then waits for confirmation before returning.
-- Campaign `--drain-to` runs only after a confirmed real-intent broadcast.
-- `--alt` fetches the real lookup-table account; failure falls back to non-ALT V0 + MTU shrink.
-- `--via-router` is off by default; enables CPI wrapper only after executable-program check.
-- Sinks must be non-executable, system-owned accounts (provenance via `TrustedSystemAccount`).
+---
 
 ## Further reading
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — router, sinks, campaign isolation, dual-lock builds
-- [docs/deploy.md](docs/deploy.md) — localnet and devnet deploy
-- [docs/smoke.md](docs/smoke.md) — post-deploy smoke commands
+- [ARCHITECTURE.md](ARCHITECTURE.md) -- sinks, campaign isolation, dual-lock detail
+- [docs/deploy.md](docs/deploy.md) -- localnet / devnet operator steps
+- [docs/smoke.md](docs/smoke.md) -- post-deploy checklist + reference signatures
 
 Licensed under [MIT](LICENSE-MIT).
