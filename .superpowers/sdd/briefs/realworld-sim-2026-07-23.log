@@ -1,0 +1,158 @@
+﻿=== realworld host start 2026-07-23T22:52:47.7420241-03:00 ===
+=== realworld sim 2026-07-24T01:52:48+00:00 RPC=http://host.docker.internal:8899 ===
+Wrote new keypair to /workspace/.tmp-operator-sim/deployer.json
+DEPLOYER_PUBKEY=4C6YWdjuwzuRSQV2962Yh8eUmm9sxbN9CbDT6DXLu2iu
+=== airdrop ===
+Requesting airdrop of 10 SOL
+
+Signature: 2EmMNQJtDBHy8qyAyaWqixpCoFSryT5tAGrkAekkyLAs35qM72qoseyAnFjP4aTDNfj6eaeVrbyJmcSzaTKtsiv3
+
+10 SOL
+AIRDROP_SIG=2EmMNQJtDBHy8qyAyaWqixpCoFSryT5tAGrkAekkyLAs35qM72qoseyAnFjP4aTDNfj6eaeVrbyJmcSzaTKtsiv3
+10 SOL
+=== program show (pre) ===
+
+Program Id: GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9
+Owner: BPFLoaderUpgradeab1e11111111111111111111111
+ProgramData Address: GVxrkzEKaZEc6z8spLbmMVLBZRTewAiC6pmvXGWgUdvK
+Authority: 6zyWAvX8VhtSsW1YLC6jJej1E47rNx4iiLPrgZS7YTT5
+Last Deployed In Slot: 60
+Data Length: 196640 (0x30020) bytes
+Balance: 1.36981848 SOL
+
+=== deploy ===
+Error: Program's authority Some(6zyWAvX8VhtSsW1YLC6jJej1E47rNx4iiLPrgZS7YTT5) does not match authority provided 4C6YWdjuwzuRSQV2962Yh8eUmm9sxbN9CbDT6DXLu2iu
+DEPLOY_SIG=
+=== program show (post) ===
+
+Program Id: GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9
+Owner: BPFLoaderUpgradeab1e11111111111111111111111
+ProgramData Address: GVxrkzEKaZEc6z8spLbmMVLBZRTewAiC6pmvXGWgUdvK
+Authority: 6zyWAvX8VhtSsW1YLC6jJej1E47rNx4iiLPrgZS7YTT5
+Last Deployed In Slot: 60
+Data Length: 196640 (0x30020) bytes
+Balance: 1.36981848 SOL
+PROGRAM_EXECUTABLE=0
+=== cook ===
+Error: "RPC genesis hash 4L5k2hVpzAc1DJahEFvq1bNz4k68DkoohgpXjzX7WPxh does not match declared cluster localnet"
+COOK_EC=1
+HANDOFF=
+ERROR: no handoff
+DEPLOYER_PUBKEY=4C6YWdjuwzuRSQV2962Yh8eUmm9sxbN9CbDT6DXLu2iu
+AIRDROP_SIG=2EmMNQJtDBHy8qyAyaWqixpCoFSryT5tAGrkAekkyLAs35qM72qoseyAnFjP4aTDNfj6eaeVrbyJmcSzaTKtsiv3
+DEPLOY_SIG=
+PROGRAM_EXECUTABLE=0
+COOK_EC=1
+HANDOFF=
+
+=== realworld retry after reset 2026-07-23T22:54:08.4066305-03:00 ===
+=== realworld sim 2026-07-24T01:54:08+00:00 RPC=http://127.0.0.1:8899 ===
+Wrote new keypair to /workspace/.tmp-operator-sim/deployer.json
+DEPLOYER_PUBKEY=HQTimX4znA2ZpbEd4GQZBcVHLHKe7Dkd73jpqXSsyAVF
+=== airdrop ===
+Requesting airdrop of 10 SOL
+
+Signature: HHi2QLLFHKNuR6XBRvHR2oLoj1FWiLArUKoYp8mb9UTiDndGNnC62yZ7u8fMhuJfMQY4tfccCbhmsbdcUNNuWzt
+
+10 SOL
+AIRDROP_SIG=HHi2QLLFHKNuR6XBRvHR2oLoj1FWiLArUKoYp8mb9UTiDndGNnC62yZ7u8fMhuJfMQY4tfccCbhmsbdcUNNuWzt
+10 SOL
+=== program show (pre) ===
+Error: Unable to find the account GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9
+=== deploy ===
+Program Id: GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9
+DEPLOY_SIG=
+=== program show (post) ===
+
+Program Id: GVWCwtjQa1DxxvAD7JFqsdaB65YpouUG3dzdYgsQpvU9
+Owner: BPFLoaderUpgradeab1e11111111111111111111111
+ProgramData Address: GVxrkzEKaZEc6z8spLbmMVLBZRTewAiC6pmvXGWgUdvK
+Authority: HQTimX4znA2ZpbEd4GQZBcVHLHKe7Dkd73jpqXSsyAVF
+Last Deployed In Slot: 59
+Data Length: 196640 (0x30020) bytes
+Balance: 1.36981848 SOL
+PROGRAM_EXECUTABLE=0
+=== cook ===
+Error: Rpc("RPC response error -32002: Transaction simulation failed: Attempt to debit an account but found no record of a prior credit. ")
+COOK_EC=1
+HANDOFF=
+ERROR: no handoff
+DEPLOYER_PUBKEY=HQTimX4znA2ZpbEd4GQZBcVHLHKe7Dkd73jpqXSsyAVF
+AIRDROP_SIG=HHi2QLLFHKNuR6XBRvHR2oLoj1FWiLArUKoYp8mb9UTiDndGNnC62yZ7u8fMhuJfMQY4tfccCbhmsbdcUNNuWzt
+DEPLOY_SIG=
+PROGRAM_EXECUTABLE=0
+COOK_EC=1
+HANDOFF=
+
+=== continue after successful cook 2026-07-23T22:55:41.9734285-03:00 ===
+===
+
+=== continue script run 2026-07-23T22:55:55.9015937-03:00 ===
+=== continue 2026-07-24T01:55:56+00:00 handoff=/workspace/.tmp-operator-sim/cooked/handoff-1784858106.json ===
+=== simulate ===
+RPC simulation succeeded; final transaction: 480/1232 bytes, 6 decoys
+Broadcast skipped (pass --send to submit)
+SIMULATE_EC=0
+=== cast --send ===
+RPC simulation succeeded; final transaction: 484/1232 bytes, 6 decoys
+Broadcast signature: 3K2RkHy1LK3RpbKbNyDcn3z2YKkvnMLZazw8tfrPvKhEUvL9e29p9MR9VBbW3r8BRH5yJjYDwxwsXqfdWcdj7sCt
+CAST_EC=0
+CAST_SIG=3K2RkHy1LK3RpbKbNyDcn3z2YKkvnMLZazw8tfrPvKhEUvL9e29p9MR9VBbW3r8BRH5yJjYDwxwsXqfdWcdj7sCt
+=== campaign short --send ===
+DecoyOnly: simulation succeeded, 379/1232 bytes (Some(mGp3FHCDGoAUMmn9zf7cuWCgnf8GqmMUGs1KFzuuwLeXjNP45BmDLEG4GmjEKxCHAorahTWuLjHXR9BEDPSsZgK))
+DecoyOnly: simulation succeeded, 379/1232 bytes (Some(4whxb3smwtHkSBYfCjQ2agWYTnWJorZnr5FUF6DxYj1r3YEtNHRhC7qWvJoNxB1xY5tHi1UNSjN73hUeahuHxtFT))
+RealIntent: simulation succeeded, 313/1232 bytes (Some(JXqWgaVozToHFaVAkL7MU3iy9SAuGYCjmmaixRrohQgh26u65sPRKpnBgm3hjjKds5885mQXARmrVamtFusGVvU))
+CAMPAIGN_EC=0
+CAMPAIGN_SIGS=mGp3FHCDGoAUMmn9zf7cuWCgnf8GqmMUGs1KFzuuwLeXjNP45BmDLEG4GmjEKxCHAorahTWuLjHXR9BEDPSsZgK,4whxb3smwtHkSBYfCjQ2agWYTnWJorZnr5FUF6DxYj1r3YEtNHRhC7qWvJoNxB1xY5tHi1UNSjN73hUeahuHxtFT,JXqWgaVozToHFaVAkL7MU3iy9SAuGYCjmmaixRrohQgh26u65sPRKpnBgm3hjjKds5885mQXARmrVamtFusGVvU,
+=== negative: cast --send without keypair ===
+Error: "provide exactly one of --keypair or --handoff"
+NEG_SEND_NO_KEY_EC=1
+=== negative: cook overwrite ===
+Error: KeyFileExists("/workspace/.tmp-operator-sim/cooked/keys/fee_payer.json")
+NEG_COOK_OVERWRITE_EC=1
+=== deployer history (for deploy sig) ===
+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
+=== results.env final ===
+DEPLOYER_PUBKEY=HQTimX4znA2ZpbEd4GQZBcVHLHKe7Dkd73jpqXSsyAVF
+AIRDROP_SIG=HHi2QLLFHKNuR6XBRvHR2oLoj1FWiLArUKoYp8mb9UTiDndGNnC62yZ7u8fMhuJfMQY4tfccCbhmsbdcUNNuWzt
+DEPLOY_SIG=
+PROGRAM_EXECUTABLE=0
+COOK_EC=1
+HANDOFF=
+COOK_OK=1
+HANDOFF=/workspace/.tmp-operator-sim/cooked/handoff-1784858106.json
+PROGRAM_EXECUTABLE=1
+AIRDROP_SIG_EXTRA=uMHu5r7Sm1bsnvPUyZQCn7h2xjqXs4EkH5J43epJi6KNorbtugA9MHrHkZLFR2ncNox1e7J3g4yUUZ7wn1BGkDH
+SIMULATE_EC=0
+CAST_EC=0
+CAST_SIG=3K2RkHy1LK3RpbKbNyDcn3z2YKkvnMLZazw8tfrPvKhEUvL9e29p9MR9VBbW3r8BRH5yJjYDwxwsXqfdWcdj7sCt
+CAMPAIGN_EC=0
+CAMPAIGN_SIGS=mGp3FHCDGoAUMmn9zf7cuWCgnf8GqmMUGs1KFzuuwLeXjNP45BmDLEG4GmjEKxCHAorahTWuLjHXR9BEDPSsZgK,4whxb3smwtHkSBYfCjQ2agWYTnWJorZnr5FUF6DxYj1r3YEtNHRhC7qWvJoNxB1xY5tHi1UNSjN73hUeahuHxtFT,JXqWgaVozToHFaVAkL7MU3iy9SAuGYCjmmaixRrohQgh26u65sPRKpnBgm3hjjKds5885mQXARmrVamtFusGVvU,
+NEG_SEND_NO_KEY_EC=1
+NEG_COOK_OVERWRITE_EC=1
+=== continue done ===
+
