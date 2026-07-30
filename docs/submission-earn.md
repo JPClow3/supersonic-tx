@@ -1,13 +1,5 @@
 # Superteam Earn — submission draft (noise bounty)
 
-Copy/paste into the Earn form. Language mirrors the bounty brief, not internal SDD.
-
-**Operator:** confirm Brazil regional eligibility before submit (checkbox / regional listing).
-
----
-
-## Submission text
-
 ### What I built
 
 **supersonic-tx** — a production-oriented **Rust** end-to-end toolkit that wraps a real Solana transfer in **realistic decoy noise** (not naive RNG). It targets algotraders, whales, and agents who want behavioral obscurity against automated graph/shape heuristics.
@@ -107,12 +99,3 @@ Localnet cast: `39iuxT1gGq2jsRzUwtb5441ME6aebnTuXhSzrd3yfFvttpGW5LBqGKnbsxbu7Fva
 - [x] README Verification CI URL matches the run cited here (`30061536023`)
 - [x] Committed tip work (typed RPC, token routes, genesis-hash fix, docs) as commit `aa80431` on `main`
 - [ ] Local `main` history was rewritten to drop junk commit messages (`jkj`, `main commit`) that are still visible on `origin/main`; pushing requires a force-push — **operator must explicitly confirm before force-pushing**
-
----
-
-## What you do next (Earn submit — operator only)
-
-1. Open Superteam Earn → Brazil noise bounty → **Submit**.
-2. Paste from this file: summary one-liner + “Submission text” sections (repo URL, tag `v0.1.0-bar-c`, CI + localnet cast proof).
-3. Confirm **Brazil / regional eligibility** checkbox.
-4. Click **Submit** yourself — do not ask an agent to submit on your behalf.
